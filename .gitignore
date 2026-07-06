@@ -4,7 +4,10 @@ target/
 *.iml
 .env
 .DS_Store
-docs/
+docs/*
+!docs/informe-pruebas.md
 scripts/
 locustfile.py
-.github/
+.github/*
+!.github/workflows/
+!.github/workflows/ci.yml
