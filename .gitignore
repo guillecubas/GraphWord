@@ -1,0 +1,10 @@
+target/
+.idea/
+.vscode/
+*.iml
+.env
+.DS_Store
+docs/
+scripts/
+locustfile.py
+.github/
