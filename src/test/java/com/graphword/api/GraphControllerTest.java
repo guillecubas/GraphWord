@@ -174,6 +174,36 @@ class GraphControllerTest {
     }
 
     @Test
+    void isolatedReturnsIsolatedNodes() throws Exception {
+        when(graphService.isolatedNodes()).thenReturn(List.of("dog"));
+
+        mockMvc.perform(get("/graph/isolated"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("dog"));
+    }
+
+    @Test
+    void degreeReturnsNodesWithRequestedDegree() throws Exception {
+        when(graphService.nodesWithDegree(3)).thenReturn(List.of("cat"));
+
+        mockMvc.perform(get("/graph/degree/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("cat"));
+
+        verify(graphService).nodesWithDegree(3);
+    }
+
+    @Test
+    void highestDegreeReturnsMostConnectedNodes() throws Exception {
+        when(graphService.highestDegreeNodes()).thenReturn(List.of("cat", "bat"));
+
+        mockMvc.perform(get("/graph/highest-degree"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("cat"))
+                .andExpect(jsonPath("$[1]").value("bat"));
+    }
+
+    @Test
     void clustersReturnsComponents() throws Exception {
         when(graphService.clusters()).thenReturn(List.of(Set.of("cat", "bat"), Set.of("dog", "dig")));
 
