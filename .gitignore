@@ -4,8 +4,8 @@ target/
 *.iml
 .env
 .DS_Store
-docs/*
-!docs/informe-pruebas.md
+docs/
+material_aparte/
 scripts/
 locustfile.py
 .github/*

@@ -13,7 +13,7 @@ class DictionaryCatalogTest {
 
         assertThat(catalog.available())
                 .extracting(DictionaryInfo::name)
-                .containsExactly("words3", "words4");
+                .containsExactly("word_medium", "words3", "words4");
     }
 
     @Test
@@ -22,6 +22,7 @@ class DictionaryCatalogTest {
 
         assertThat(catalog.pathFor("words3")).isEqualTo("data/words3.txt");
         assertThat(catalog.pathFor("words4")).isEqualTo("data/words4.txt");
+        assertThat(catalog.pathFor("word_medium")).isEqualTo("data/word_medium.txt");
         assertThatThrownBy(() -> catalog.pathFor("words5"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Unknown dictionary: words5");

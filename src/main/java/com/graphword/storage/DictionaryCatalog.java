@@ -9,6 +9,7 @@ import java.util.Map;
 public class DictionaryCatalog {
 
     private final Map<String, DictionaryInfo> dictionaries = Map.of(
+            "word_medium", new DictionaryInfo("word_medium", "data/word_medium.txt", 5),
             "words3", new DictionaryInfo("words3", "data/words3.txt", 3),
             "words4", new DictionaryInfo("words4", "data/words4.txt", 4)
     );
