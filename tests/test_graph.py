@@ -7,9 +7,9 @@ import sys
 import unittest
 
 from graphword.graph import (
-    all_simple_paths, build_partition, components, longest_simple_path,
-    merge_partitions, nodes_by_degree, normalize_words, partition_for,
-    shortest_path, summary,
+    all_simple_paths, build_partition, components, dense_subgraphs, k_core,
+    longest_simple_path, merge_partitions, nodes_by_degree, normalize_words,
+    partition_for, shortest_path, summary,
 )
 
 
@@ -131,6 +131,40 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(summary(graph), {"nodes": 4, "edges": 2, "components": 2,
                                         "isolated": ["dog"], "max_degree": 2,
                                         "highest_degree_nodes": ["cat"]})
+
+    def test_k_core_peels_low_degree_nodes_recursively(self):
+        graph = {
+            "a": {"b", "c", "d"},
+            "b": {"a", "c"},
+            "c": {"a", "b"},
+            "d": {"a", "e"},
+            "e": {"d"},
+            "z": set(),
+        }
+        original = {node: set(neighbors) for node, neighbors in graph.items()}
+        self.assertEqual(k_core(graph, 2), {
+            "a": {"b", "c"},
+            "b": {"a", "c"},
+            "c": {"a", "b"},
+        })
+        self.assertEqual(k_core(graph, 3), {})
+        self.assertEqual(graph, original)
+
+    def test_dense_subgraphs_are_k_core_regions_not_plain_components(self):
+        graph = {
+            "a": {"b", "c"}, "b": {"a", "c"}, "c": {"a", "b"},
+            "d": {"e", "f"}, "e": {"d", "f"}, "f": {"d", "e", "g"},
+            "g": {"f"},
+        }
+        self.assertEqual(len(components(graph)), 2)
+        self.assertEqual(dense_subgraphs(graph, 2), [
+            ["a", "b", "c"],
+            ["d", "e", "f"],
+        ])
+        with self.assertRaises(ValueError):
+            dense_subgraphs(graph, 0)
+        with self.assertRaises(ValueError):
+            k_core(graph, -1)
 
     def test_empty_summary(self):
         self.assertEqual(summary({})["highest_degree_nodes"], [])

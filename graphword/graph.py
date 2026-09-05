@@ -240,6 +240,48 @@ def components(graph: Graph) -> list[list[str]]:
     return result
 
 
+def k_core(graph: Graph, k: int) -> Graph:
+    """Return the maximal induced subgraph whose internal degree is at least k.
+
+    Nodes below the threshold are peeled repeatedly because removing one node can
+    make its neighbors fall below the threshold too. The input graph is unchanged.
+    """
+    if k < 0:
+        raise ValueError("k must not be negative")
+    remaining = set(graph)
+    degrees = {
+        node: len(graph[node] & remaining)
+        for node in remaining
+    }
+    pending = deque(sorted(node for node, degree in degrees.items() if degree < k))
+
+    while pending:
+        node = pending.popleft()
+        if node not in remaining:
+            continue
+        remaining.remove(node)
+        for neighbor in graph[node] & remaining:
+            degrees[neighbor] -= 1
+            if degrees[neighbor] == k - 1:
+                pending.append(neighbor)
+
+    return {
+        node: graph[node] & remaining
+        for node in sorted(remaining)
+    }
+
+
+def dense_subgraphs(graph: Graph, minimum_degree: int = 2) -> list[list[str]]:
+    """Identify connected regions of a k-core, not mere graph components.
+
+    This is an explicit density criterion rather than a modularity-based community
+    partition. Raising ``minimum_degree`` produces progressively stricter cores.
+    """
+    if minimum_degree < 1:
+        raise ValueError("minimum_degree must be positive")
+    return components(k_core(graph, minimum_degree))
+
+
 def nodes_by_degree(graph: Graph, degree: int) -> list[str]:
     if degree < 0:
         raise ValueError("degree must not be negative")
