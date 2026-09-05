@@ -52,5 +52,5 @@ las componentes del grafo y valida parámetros erróneos. Resultado local acumul
 18 pruebas, 0 errores y 0 fallos con Python 3.12.14.
 
 Sobre `data/words3.txt`, el `3-core` contiene `bat`, `cat`, `mat` y `rat`, mientras
-que el `4-core` está vacío. La ejecución remota correspondiente se registra después
-de publicar el commit para no presentar como ejecutada una CI que solo está definida.
+que el `4-core` está vacío. La ejecución `33995304808` de GitHub Actions validó el
+hito completo en Python 3.11 y Python 3.12.
