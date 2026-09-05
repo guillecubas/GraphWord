@@ -38,4 +38,8 @@ por cantidad y profundidad, camino simple más largo, límites y nodos desconoci
 Resultado actual: 16 pruebas, 0 errores y 0 fallos. También se compilaron los módulos
 con `py_compile` y `git diff --check` no detectó errores de whitespace.
 
-Sigue sin verificarse Python 3.11, Docker, CI remoto, AWS ni ejecución distribuida.
+La ejecución remota `33994842751` de GitHub Actions terminó correctamente para el
+commit `eeaad2c`: pasaron los jobs de Python 3.11 y Python 3.12. Los enlaces y
+artefactos de esa ejecución constituyen la evidencia de CI de esta etapa.
+
+Sigue sin verificarse Docker, AWS, rendimiento bajo carga ni ejecución distribuida.
