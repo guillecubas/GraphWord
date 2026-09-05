@@ -2,10 +2,32 @@
 
 from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from hashlib import sha256
 import re
+from time import monotonic
 
 Graph = dict[str, set[str]]
+
+
+@dataclass(frozen=True)
+class AllPathsResult:
+    """Bounded result for an otherwise combinatorial path enumeration."""
+
+    paths: list[list[str]]
+    complete: bool
+    stop_reason: str | None
+    explored_states: int
+
+
+@dataclass(frozen=True)
+class LongestPathResult:
+    """Best simple path found, plus whether its optimality is proven."""
+
+    path: list[str]
+    complete: bool
+    stop_reason: str | None
+    explored_states: int
 
 
 def normalize_words(lines: Iterable[str]) -> list[str]:
@@ -73,6 +95,128 @@ def shortest_path(graph: Graph, start: str, end: str) -> list[str]:
                 previous[neighbor] = current
                 queue.append(neighbor)
     return []
+
+
+def _validate_path_search(
+    graph: Graph,
+    start: str,
+    end: str,
+    max_states: int,
+    max_depth: int | None,
+    timeout_seconds: float | None,
+) -> tuple[str, str]:
+    start, end = start.strip().lower(), end.strip().lower()
+    if start not in graph or end not in graph:
+        raise ValueError("both words must exist in the graph")
+    if max_states < 1:
+        raise ValueError("max_states must be positive")
+    if max_depth is not None and max_depth < 0:
+        raise ValueError("max_depth must not be negative")
+    if timeout_seconds is not None and timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    return start, end
+
+
+def _bounded_simple_paths(
+    graph: Graph,
+    start: str,
+    end: str,
+    *,
+    max_states: int,
+    max_depth: int | None,
+    timeout_seconds: float | None,
+    max_paths: int | None,
+    collect_paths: bool,
+) -> tuple[list[list[str]], list[str], bool, str | None, int]:
+    """Enumerate deterministically without claiming completeness after pruning."""
+    start, end = _validate_path_search(
+        graph, start, end, max_states, max_depth, timeout_seconds
+    )
+    deadline = monotonic() + timeout_seconds if timeout_seconds is not None else None
+    stack: list[tuple[str, list[str], frozenset[str]]] = [
+        (start, [start], frozenset({start}))
+    ]
+    paths: list[list[str]] = []
+    best: list[str] = []
+    explored_states = 0
+    depth_pruned = False
+
+    while stack:
+        if deadline is not None and monotonic() >= deadline:
+            return paths, best, False, "timeout", explored_states
+        if explored_states >= max_states:
+            return paths, best, False, "max_states", explored_states
+
+        current, path, visited = stack.pop()
+        explored_states += 1
+        if current == end:
+            if not best or len(path) > len(best) or (len(path) == len(best) and path < best):
+                best = path
+            if collect_paths:
+                paths.append(path)
+            if max_paths is not None and len(paths) >= max_paths and stack:
+                return paths, best, False, "max_paths", explored_states
+            continue
+
+        unvisited = [neighbor for neighbor in sorted(graph[current]) if neighbor not in visited]
+        if max_depth is not None and len(path) - 1 >= max_depth:
+            depth_pruned = depth_pruned or bool(unvisited)
+            continue
+        for neighbor in reversed(unvisited):
+            stack.append((neighbor, [*path, neighbor], visited | {neighbor}))
+
+    if depth_pruned:
+        return paths, best, False, "max_depth", explored_states
+    return paths, best, True, None, explored_states
+
+
+def all_simple_paths(
+    graph: Graph,
+    start: str,
+    end: str,
+    *,
+    max_paths: int = 1_000,
+    max_states: int = 100_000,
+    max_depth: int | None = None,
+    timeout_seconds: float | None = None,
+) -> AllPathsResult:
+    """Return simple paths and say explicitly whether enumeration was exhaustive."""
+    if max_paths < 1:
+        raise ValueError("max_paths must be positive")
+    paths, _, complete, stop_reason, explored_states = _bounded_simple_paths(
+        graph,
+        start,
+        end,
+        max_states=max_states,
+        max_depth=max_depth,
+        timeout_seconds=timeout_seconds,
+        max_paths=max_paths,
+        collect_paths=True,
+    )
+    return AllPathsResult(paths, complete, stop_reason, explored_states)
+
+
+def longest_simple_path(
+    graph: Graph,
+    start: str,
+    end: str,
+    *,
+    max_states: int = 100_000,
+    max_depth: int | None = None,
+    timeout_seconds: float | None = None,
+) -> LongestPathResult:
+    """Find the longest start-to-end simple path; exact only when complete is true."""
+    _, best, complete, stop_reason, explored_states = _bounded_simple_paths(
+        graph,
+        start,
+        end,
+        max_states=max_states,
+        max_depth=max_depth,
+        timeout_seconds=timeout_seconds,
+        max_paths=None,
+        collect_paths=False,
+    )
+    return LongestPathResult(best, complete, stop_reason, explored_states)
 
 
 def components(graph: Graph) -> list[list[str]]:

@@ -7,8 +7,9 @@ import sys
 import unittest
 
 from graphword.graph import (
-    build_partition, components, merge_partitions, nodes_by_degree,
-    normalize_words, partition_for, shortest_path, summary,
+    all_simple_paths, build_partition, components, longest_simple_path,
+    merge_partitions, nodes_by_degree, normalize_words, partition_for,
+    shortest_path, summary,
 )
 
 
@@ -73,6 +74,55 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(shortest_path(graph, "cat", "dog"), [])
         with self.assertRaises(ValueError):
             shortest_path(graph, "cat", "bad")
+
+    def test_all_simple_paths_are_deterministic_and_complete(self):
+        graph = build_partition(["cat", "bat", "bad", "dad", "cad"])
+        result = all_simple_paths(graph, " CAT ", "dad")
+        self.assertTrue(result.complete)
+        self.assertIsNone(result.stop_reason)
+        self.assertEqual(result.paths, [
+            ["cat", "bat", "bad", "cad", "dad"],
+            ["cat", "bat", "bad", "dad"],
+            ["cat", "cad", "bad", "dad"],
+            ["cat", "cad", "dad"],
+        ])
+
+    def test_all_simple_paths_reports_truncation(self):
+        graph = build_partition(["cat", "bat", "bad", "dad", "cad"])
+        by_count = all_simple_paths(graph, "cat", "dad", max_paths=2)
+        self.assertFalse(by_count.complete)
+        self.assertEqual(by_count.stop_reason, "max_paths")
+        self.assertEqual(len(by_count.paths), 2)
+
+        by_depth = all_simple_paths(graph, "cat", "dad", max_depth=2)
+        self.assertFalse(by_depth.complete)
+        self.assertEqual(by_depth.stop_reason, "max_depth")
+        self.assertEqual(by_depth.paths, [["cat", "cad", "dad"]])
+
+    def test_longest_simple_path_distinguishes_proven_and_best_found(self):
+        graph = build_partition(["cat", "bat", "bad", "dad", "cad"])
+        exact = longest_simple_path(graph, "cat", "dad")
+        self.assertTrue(exact.complete)
+        self.assertEqual(exact.path, ["cat", "bat", "bad", "cad", "dad"])
+
+        limited = longest_simple_path(graph, "cat", "dad", max_states=5)
+        self.assertFalse(limited.complete)
+        self.assertEqual(limited.stop_reason, "max_states")
+        self.assertEqual(limited.path, ["cat", "bat", "bad", "cad", "dad"])
+
+    def test_bounded_path_search_validates_limits_and_unknown_nodes(self):
+        graph = build_partition(["cat", "bat"])
+        invalid_calls = [
+            lambda: all_simple_paths(graph, "cat", "dog"),
+            lambda: all_simple_paths(graph, "cat", "bat", max_paths=0),
+            lambda: all_simple_paths(graph, "cat", "bat", max_states=0),
+            lambda: longest_simple_path(graph, "cat", "bat", max_depth=-1),
+            lambda: longest_simple_path(graph, "cat", "bat", timeout_seconds=0),
+        ]
+        for call in invalid_calls:
+            with self.subTest(call=call):
+                with self.assertRaises(ValueError):
+                    call()
 
     def test_components_and_degrees(self):
         graph = build_partition(["cat", "bat", "cot", "dog"])
