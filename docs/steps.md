@@ -12,6 +12,10 @@
    el camino simple más largo entre dos nodos con límites y estado de completitud.
 5. `docs: document bounded path search semantics`: documenta qué garantiza el
    resultado exacto y cómo debe interpretarse una búsqueda truncada.
+6. `feat: identify dense subgraphs with k-cores`: implementa un criterio explícito
+   de densidad interna sin confundirlo con componentes conexas.
+7. `docs: explain the k-core density criterion`: registra la decisión, sus límites
+   y un resultado reproducible con el diccionario de ejemplo.
 
 La rama anterior de migración Java no es un requisito. Este cambio parte de
 `public-clean` en `b0f678a`. El parche Python reemplaza al parche Java de la conversación.
@@ -50,8 +54,9 @@ ejecutado el workflow remoto. Se necesita acceso de escritura o el push desde tu
 
 ## Siguientes etapas
 
-1. Implementar comunidades densas con un algoritmo y criterio documentados.
-2. Añadir FastAPI con `/v1/graphs`, `/v1/jobs` y contratos de trabajo.
+1. Añadir FastAPI con contratos versionados, empezando por consultas síncronas al
+   motor local para separar y probar la capa HTTP.
+2. Convertir construcción y búsquedas costosas en trabajos asíncronos.
 3. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
 4. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.
 5. Desplegar infraestructura AWS según cuenta y permisos, y automatizar su despliegue.

@@ -67,6 +67,22 @@ de todos los caminos y del camino simple más largo entre dos nodos. Devuelve
 contrato a la API y decidir límites operativos. No se confunde el camino simple más
 largo con el diámetro ni componentes con comunidades densas.
 
+## Decisión sobre subgrafos densos
+
+Se usa descomposición `k-core`. El `k-core` es el subgrafo inducido maximal en el
+que cada nodo tiene grado interno igual o superior a `k`. Se calcula eliminando
+repetidamente los nodos que no cumplen el umbral; no basta con filtrar una sola vez,
+porque cada eliminación puede reducir el grado de sus vecinos.
+
+Las regiones conexas del resultado se presentan como subgrafos densos. La elección
+es determinista, no añade dependencias y ofrece un parámetro fácil de explicar. No
+se etiqueta como detección de comunidades por modularidad: métodos como Louvain
+responden a una definición diferente y podrían añadirse como estrategia futura.
+
+En `data/words3.txt`, el `3-core` está formado por `bat`, `cat`, `mat` y `rat`; el
+`4-core` está vacío. El coste del peeling es lineal en nodos y aristas para un grafo
+representado mediante conjuntos de adyacencia.
+
 Para demostrar el sistema final: ejecutar al menos dos workers con IDs distintos
 procesando un mismo grafo, comparar el resultado con el oráculo local, recuperar una
 caída, comprobar entregas repetidas y medir uno frente a varios workers. Añadir vistas

@@ -48,15 +48,21 @@ a recorrer el diccionario. No se afirma una mejora de rendimiento sin medirla.
 
 Implementado: construcción, camino mínimo, todos los caminos simples entre dos
 nodos, mejor camino simple largo encontrado entre dos nodos, componentes conexas,
-nodos aislados, selección por grado y nodos de grado máximo.
+nodos aislados, selección por grado, nodos de grado máximo y subgrafos densos
+mediante `k-core`.
 
 Las dos búsquedas combinatorias aceptan límites de estados, profundidad y tiempo;
 la enumeración acepta además un máximo de resultados. Devuelven `complete`,
 `stop_reason` y `explored_states`. Un camino largo con `complete=false` es solo el
 mejor encontrado: no se presenta como máximo garantizado.
 
-Pendiente: comunidades densas, API de trabajos, persistencia, workers,
-infraestructura y demostración AWS. Componentes conexas no son comunidades densas.
+`dense_subgraphs(graph, minimum_degree=k)` devuelve las regiones conexas del
+`k-core`: dentro del subgrafo resultante, cada nodo tiene al menos `k` vecinos.
+Es un criterio estructural reproducible, no una partición por modularidad como
+Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
+
+Pendiente: API de trabajos, persistencia, workers, infraestructura y demostración
+AWS.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.
 Sus fuentes y licencias deben documentarse antes de presentarlos como un corpus real.

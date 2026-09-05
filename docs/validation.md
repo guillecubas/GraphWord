@@ -43,3 +43,14 @@ commit `eeaad2c`: pasaron los jobs de Python 3.11 y Python 3.12. Los enlaces y
 artefactos de esa ejecución constituyen la evidencia de CI de esta etapa.
 
 Sigue sin verificarse Docker, AWS, rendimiento bajo carga ni ejecución distribuida.
+
+## Validación de subgrafos densos
+
+Se añadieron dos pruebas: una comprueba el peeling recursivo y que el grafo original
+no se modifica; la otra demuestra que las regiones del `k-core` no son simplemente
+las componentes del grafo y valida parámetros erróneos. Resultado local acumulado:
+18 pruebas, 0 errores y 0 fallos con Python 3.12.14.
+
+Sobre `data/words3.txt`, el `3-core` contiene `bat`, `cat`, `mat` y `rat`, mientras
+que el `4-core` está vacío. La ejecución remota correspondiente se registra después
+de publicar el commit para no presentar como ejecutada una CI que solo está definida.
