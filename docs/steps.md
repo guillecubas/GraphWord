@@ -16,6 +16,10 @@
    de densidad interna sin confundirlo con componentes conexas.
 7. `docs: explain the k-core density criterion`: registra la decisión, sus límites
    y un resultado reproducible con el diccionario de ejemplo.
+8. `feat: add versioned local FastAPI adapter`: añade creación, resumen y camino
+   mínimo por HTTP, un puerto de almacenamiento y cinco pruebas de contrato.
+9. `docs: describe the first local HTTP milestone`: documenta ejecución, endpoints
+   y las limitaciones explícitas del repositorio en memoria.
 
 La rama anterior de migración Java no es un requisito. Este cambio parte de
 `public-clean` en `b0f678a`. El parche Python reemplaza al parche Java de la conversación.
@@ -54,8 +58,7 @@ ejecutado el workflow remoto. Se necesita acceso de escritura o el push desde tu
 
 ## Siguientes etapas
 
-1. Añadir FastAPI con contratos versionados, empezando por consultas síncronas al
-   motor local para separar y probar la capa HTTP.
+1. Exponer por HTTP grados, caminos acotados y `k-core` con sus contratos completos.
 2. Convertir construcción y búsquedas costosas en trabajos asíncronos.
 3. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
 4. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.

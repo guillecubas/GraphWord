@@ -18,17 +18,22 @@ no resuelve eso: se debe cambiar la arquitectura.
 | Aplicación objetivo | Tecnología propuesta | Estado |
 |---|---|---|
 | Motor de grafos | Python, biblioteca estándar | Implementado parcialmente |
-| API de trabajos y consultas | FastAPI en un servicio ECS | Pendiente |
+| API de trabajos y consultas | FastAPI; servicio ECS objetivo | Adaptador HTTP local parcial |
 | Workers de construcción y análisis | Procesos Python en otro servicio ECS | Pendiente |
 | Reparto de trabajos y errores | SQS y DLQ | Pendiente |
 | Diccionarios, particiones y resultados | S3 | Pendiente |
 | Catálogo y estados de trabajos | DynamoDB | Pendiente |
 | Acceso, imágenes y observabilidad | ALB, ECR, IAM y CloudWatch | Pendiente |
 
-FastAPI y Boto3 se incorporarán como dependencias en las etapas correspondientes.
-ECS/Fargate o ECS/EC2 se concretará según las restricciones de AWS Academy o de la
+FastAPI ya forma parte del adaptador local; Boto3 se incorporará con los adaptadores
+AWS. ECS/Fargate o ECS/EC2 se concretará según las restricciones de AWS Academy o de la
 cuenta propia. La infraestructura deberá quedar declarada y probada, con su coste
 y procedimiento de eliminación documentados. No hay recursos desplegados aquí.
+
+La primera API usa una factoría de aplicación y el puerto `GraphRepository`. El
+adaptador `InMemoryGraphRepository` está protegido para acceso concurrente dentro
+de un proceso, pero no ofrece durabilidad ni estado compartido. Esta separación
+permite reemplazarlo posteriormente sin acoplar FastAPI al SDK de AWS.
 
 ## Flujo distribuido propuesto
 

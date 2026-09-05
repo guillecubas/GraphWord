@@ -54,3 +54,20 @@ las componentes del grafo y valida parámetros erróneos. Resultado local acumul
 Sobre `data/words3.txt`, el `3-core` contiene `bat`, `cat`, `mat` y `rat`, mientras
 que el `4-core` está vacío. La ejecución `33995304808` de GitHub Actions validó el
 hito completo en Python 3.11 y Python 3.12.
+
+## Validación de la primera API
+
+Se añadieron cinco pruebas HTTP para salud, creación y lectura de grafos, camino
+mínimo, errores diferenciados y validación de entrada. Resultado local acumulado:
+23 pruebas, 0 errores y 0 fallos con Python 3.12.14. El esquema OpenAPI contiene
+cuatro rutas: `/health`, `/v1/graphs`, `/v1/graphs/{graph_id}` y la consulta
+`shortest-path`.
+
+También se arrancó Uvicorn realmente en `127.0.0.1:8765`: `/health` devolvió 200 y
+la creación de un grafo de cuatro palabras devolvió 201 con 4 nodos, 3 aristas y
+una componente. El proceso se detuvo al terminar la comprobación.
+
+La construcción `docker build -t graphword-python-api:test .` se intentó y falló
+antes de procesar el Dockerfile porque no estaba iniciado el motor Linux de Docker
+Desktop (`dockerDesktopLinuxEngine`). Por tanto, el Dockerfile está preparado pero
+la imagen no se considera verificada.

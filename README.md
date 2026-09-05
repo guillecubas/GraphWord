@@ -1,15 +1,16 @@
 # GraphWord en Python
 
-Primera etapa de la reimplementación: motor de grafos particionable, demostración
-local y pruebas. Esta rama sustituye Java por Python. No contiene todavía una API
-HTTP, integración con AWS ni un despliegue distribuido.
+Reimplementación con motor de grafos particionable, API HTTP local y pruebas. Esta
+rama sustituye Java por Python. No contiene todavía integración con AWS ni un
+despliegue distribuido.
 
 ## Ejecutar
 
-Python 3.11 o superior. Esta etapa solo utiliza la biblioteca estándar: no requiere
-instalar dependencias. Desde la carpeta del proyecto:
+Python 3.11 o superior. Crear un entorno e instalar el proyecto:
 
 ```bash
+python -m venv .venv
+python -m pip install -e ".[test]"
 python -m unittest discover -s tests -v
 python -m graphword data/words3.txt --partitions 4 --from cat --to dad
 ```
@@ -23,6 +24,8 @@ El ejemplo devuelve 20 nodos, 29 aristas, 2 componentes y el camino
 | Archivo | Responsabilidad |
 |---|---|
 | `graphword/graph.py` | Normalización, constructor por patrones, unión, BFS, componentes y grados |
+| `graphword/api.py` | Contratos HTTP versionados y factoría FastAPI |
+| `graphword/storage.py` | Puerto de persistencia y adaptador local en memoria |
 | `graphword/__main__.py` | Demostración por terminal; lectura del fichero y salida JSON |
 | `tests/test_graph.py` | 12 pruebas, incluyendo comparación con un constructor independiente |
 | `.github/workflows/ci.yml` | Pruebas en Python 3.11/3.12 y conservación de sus resultados |
@@ -61,8 +64,24 @@ mejor encontrado: no se presenta como máximo garantizado.
 Es un criterio estructural reproducible, no una partición por modularidad como
 Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
 
-Pendiente: API de trabajos, persistencia, workers, infraestructura y demostración
-AWS.
+Pendiente: API asíncrona de trabajos, persistencia compartida, workers,
+infraestructura y demostración AWS.
+
+## API local
+
+Arrancar con `uvicorn graphword.api:app --reload`. La documentación interactiva
+queda en `http://127.0.0.1:8000/docs`. La primera versión permite crear un grafo,
+consultar su resumen y calcular un camino mínimo:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/graphs \
+  -H "Content-Type: application/json" \
+  -d '{"words":["cat","bat","bad","dad"],"partitions":2}'
+```
+
+El repositorio actual vive en memoria dentro de un único proceso. Reiniciar la API
+borra los grafos y dos réplicas no comparten datos. Esta limitación es intencionada
+y está aislada tras `GraphRepository`; no constituye todavía arquitectura distribuida.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.
 Sus fuentes y licencias deben documentarse antes de presentarlos como un corpus real.
@@ -75,8 +94,8 @@ docker build -t graphword-python .
 docker run --rm graphword-python
 ```
 
-El contenedor ejecuta la misma demostración local; no expone un servidor HTTP.
-Su construcción no se ha verificado en el entorno de esta entrega.
+El contenedor expone la API en el puerto 8000. El Dockerfile se actualizó, pero la
+construcción local no pudo verificarse porque Docker Desktop no estaba iniciado.
 
 Referencias: [unittest](https://docs.python.org/3/library/unittest.html),
 [hashlib](https://docs.python.org/3/library/hashlib.html).
