@@ -27,3 +27,15 @@ No verificado: ejecución en Python 3.11, construcción Docker, CI remoto,
 API HTTP, comportamiento distribuido, despliegue AWS o rendimiento bajo carga.
 El workflow está preparado para Python 3.11 y 3.12, pero configurarlo no prueba
 que haya sido ejecutado en GitHub.
+
+## Validación tras integrar el parche
+
+Entorno local de Codex: Python 3.12.14 incluido en el runtime de la aplicación.
+
+Se repitieron las 12 pruebas de la etapa inicial y la demostración, con el mismo
+resultado. Después se añadieron 4 pruebas para enumeración completa, truncamiento
+por cantidad y profundidad, camino simple más largo, límites y nodos desconocidos.
+Resultado actual: 16 pruebas, 0 errores y 0 fallos. También se compilaron los módulos
+con `py_compile` y `git diff --check` no detectó errores de whitespace.
+
+Sigue sin verificarse Python 3.11, Docker, CI remoto, AWS ni ejecución distribuida.

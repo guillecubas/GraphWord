@@ -46,11 +46,16 @@ a recorrer el diccionario. No se afirma una mejora de rendimiento sin medirla.
 
 ## Estado funcional
 
-Implementado: construcción, camino mínimo, componentes conexas, nodos aislados,
-selección por grado y nodos de grado máximo.
+Implementado: construcción, camino mínimo, todos los caminos simples entre dos
+nodos, mejor camino simple largo encontrado entre dos nodos, componentes conexas,
+nodos aislados, selección por grado y nodos de grado máximo.
 
-Pendiente: todos los caminos con límites explícitos, camino simple más largo con
-estado de completitud, comunidades densas, API de trabajos, persistencia, workers,
+Las dos búsquedas combinatorias aceptan límites de estados, profundidad y tiempo;
+la enumeración acepta además un máximo de resultados. Devuelven `complete`,
+`stop_reason` y `explored_states`. Un camino largo con `complete=false` es solo el
+mejor encontrado: no se presenta como máximo garantizado.
+
+Pendiente: comunidades densas, API de trabajos, persistencia, workers,
 infraestructura y demostración AWS. Componentes conexas no son comunidades densas.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.

@@ -61,9 +61,11 @@ ha implementado todavía este protocolo de coordinación.
 
 La construcción se podrá distribuir por particiones. BFS y la reducción inicial
 seguirán necesitando el grafo completo en un worker; se deberá medir su memoria.
-Las búsquedas de todos los caminos y del camino más largo deberán limitar estados
-explorados, profundidad y tiempo, devolviendo `complete` y `stopReason`. No confundir
-el camino simple más largo con el diámetro ni componentes con comunidades densas.
+El motor local ya limita estados explorados, profundidad y tiempo en las búsquedas
+de todos los caminos y del camino simple más largo entre dos nodos. Devuelve
+`complete`, `stop_reason` y `explored_states`; queda pendiente transportar ese
+contrato a la API y decidir límites operativos. No se confunde el camino simple más
+largo con el diámetro ni componentes con comunidades densas.
 
 Para demostrar el sistema final: ejecutar al menos dos workers con IDs distintos
 procesando un mismo grafo, comparar el resultado con el oráculo local, recuperar una
