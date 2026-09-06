@@ -73,6 +73,48 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(unknown.status_code, 422)
         self.assertEqual(unknown.json()["detail"]["code"], "unknown_word")
 
+    def test_all_paths_exposes_completeness_and_limits(self):
+        self.client.post("/v1/graphs", json={
+            "words": ["cat", "bat", "bad", "dad", "cad"],
+        })
+        response = self.client.post(
+            f"/v1/graphs/{GRAPH_ID}/queries/all-simple-paths",
+            json={"start": "cat", "end": "dad", "max_paths": 2},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body["paths"]), 2)
+        self.assertFalse(body["complete"])
+        self.assertEqual(body["stop_reason"], "max_paths")
+        self.assertGreater(body["explored_states"], 0)
+
+    def test_longest_path_does_not_claim_unproven_optimality(self):
+        self.client.post("/v1/graphs", json={
+            "words": ["cat", "bat", "bad", "dad", "cad"],
+        })
+        response = self.client.post(
+            f"/v1/graphs/{GRAPH_ID}/queries/longest-simple-path",
+            json={"start": "cat", "end": "dad", "max_states": 5},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["path"], ["cat", "bat", "bad", "cad", "dad"])
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(response.json()["stop_reason"], "max_states")
+
+    def test_degree_selection_and_dense_subgraphs(self):
+        self.client.post("/v1/graphs", json={
+            "words": ["bat", "cat", "mat", "rat", "dog"],
+        })
+        isolated = self.client.get(f"/v1/graphs/{GRAPH_ID}/nodes?degree=0")
+        self.assertEqual(isolated.status_code, 200)
+        self.assertEqual(isolated.json()["nodes"], ["dog"])
+
+        dense = self.client.get(
+            f"/v1/graphs/{GRAPH_ID}/dense-subgraphs?minimum_degree=3"
+        )
+        self.assertEqual(dense.status_code, 200)
+        self.assertEqual(dense.json()["subgraphs"], [["bat", "cat", "mat", "rat"]])
+
     def test_request_validation_rejects_invalid_inputs(self):
         self.assertEqual(
             self.client.post("/v1/graphs", json={"words": [], "partitions": 1}).status_code,
@@ -85,6 +127,17 @@ class ApiTests(unittest.TestCase):
         invalid_words = self.client.post("/v1/graphs", json={"words": ["123", ""]})
         self.assertEqual(invalid_words.status_code, 422)
         self.assertEqual(invalid_words.json()["detail"]["code"], "empty_dictionary")
+
+        self.client.post("/v1/graphs", json={"words": ["cat", "bat"]})
+        excessive = self.client.post(
+            f"/v1/graphs/{GRAPH_ID}/queries/all-simple-paths",
+            json={"start": "cat", "end": "bat", "max_states": 1_000_001},
+        )
+        self.assertEqual(excessive.status_code, 422)
+        invalid_core = self.client.get(
+            f"/v1/graphs/{GRAPH_ID}/dense-subgraphs?minimum_degree=0"
+        )
+        self.assertEqual(invalid_core.status_code, 422)
 
 
 if __name__ == "__main__":
