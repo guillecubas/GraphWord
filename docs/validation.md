@@ -81,3 +81,14 @@ también cubren los máximos permitidos por la API. Resultado local acumulado:
 
 El esquema OpenAPI 0.3.0 contiene ocho rutas. Esta validación prueba los contratos
 HTTP síncronos y el adaptador local, no ejecución asíncrona ni distribuida.
+
+## Validación de trabajos locales
+
+Se añadieron siete pruebas: cinco del dominio de trabajos y el worker, y dos del
+contrato HTTP. Cubren transición completa, recuperación de lease, rechazo de token
+antiguo, reintentos agotados, publicación del grafo, respuesta 202 y error 404 de
+trabajo. Resultado local acumulado: 33 pruebas, 0 errores y 0 fallos.
+
+OpenAPI 0.4.0 contiene diez rutas. La prueba de extremo a extremo comparte los
+repositorios en memoria entre API y worker; no demuestra comunicación entre procesos,
+persistencia tras reinicio, SQS, DynamoDB ni AWS.

@@ -64,8 +64,9 @@ mejor encontrado: no se presenta como máximo garantizado.
 Es un criterio estructural reproducible, no una partición por modularidad como
 Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
 
-Pendiente: convertir construcción y consultas costosas en trabajos asíncronos,
-añadir persistencia compartida, workers, infraestructura y demostración AWS.
+Implementado localmente: contrato 202 para construir grafos, máquina de estados con
+leases y worker independiente de FastAPI. Pendiente: almacenamiento y cola
+compartidos, distribuir particiones entre varios workers, infraestructura y AWS.
 
 ## API local
 
@@ -82,6 +83,10 @@ curl -X POST http://127.0.0.1:8000/v1/graphs \
 El repositorio actual vive en memoria dentro de un único proceso. Reiniciar la API
 borra los grafos y dos réplicas no comparten datos. Esta limitación es intencionada
 y está aislada tras `GraphRepository`; no constituye todavía arquitectura distribuida.
+
+`POST /v1/jobs/graph-builds` crea un trabajo `PENDING`. En esta etapa la API y el
+worker solo pueden colaborar si reciben las mismas instancias de repositorio dentro
+de un proceso de prueba. No hay un worker de fondo oculto dentro de FastAPI.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.
 Sus fuentes y licencias deben documentarse antes de presentarlos como un corpus real.

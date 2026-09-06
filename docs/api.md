@@ -5,6 +5,8 @@ Estado: implementado y probado localmente; no desplegado.
 | Método y ruta | Resultado | Estado normal |
 |---|---|---|
 | `GET /health` | Salud y tipo de almacenamiento | 200 |
+| `POST /v1/jobs/graph-builds` | Registra una construcción asíncrona | 202 |
+| `GET /v1/jobs/{job_id}` | Consulta estado, intentos y resultado | 200 |
 | `POST /v1/graphs` | Crea el grafo síncronamente | 201 |
 | `GET /v1/graphs/{graph_id}` | Recupera su resumen | 200 |
 | `POST /v1/graphs/{graph_id}/queries/shortest-path` | Camino mínimo o lista vacía | 200 |
@@ -34,5 +36,9 @@ resumen del grafo. `dense-subgraphs` usa `k-core`; no afirma aplicar Louvain ni 
 partición por modularidad.
 
 La creación es síncrona y el almacenamiento es local al proceso. La API todavía no
-devuelve 202 ni crea trabajos porque aún no existen una cola y una máquina de estados
-persistente que permitan sostener ese contrato correctamente.
+ofrece ejecución distribuida. El endpoint de trabajos sí devuelve 202, pero su
+repositorio y su cola son adaptadores locales en memoria; se conserva temporalmente
+la creación síncrona para comparar ambos contratos durante la migración.
+
+Un trabajo pasa por `PENDING`, `RUNNING` y `SUCCEEDED` o `FAILED`. Los detalles del
+lease, reintentos y garantías se documentan en `docs/jobs.md`.

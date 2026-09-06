@@ -19,7 +19,7 @@ no resuelve eso: se debe cambiar la arquitectura.
 |---|---|---|
 | Motor de grafos | Python, biblioteca estándar | Implementado parcialmente |
 | API de trabajos y consultas | FastAPI; servicio ECS objetivo | Adaptador HTTP local parcial |
-| Workers de construcción y análisis | Procesos Python en otro servicio ECS | Pendiente |
+| Workers de construcción y análisis | Python; otro servicio ECS objetivo | Servicio local implementado |
 | Reparto de trabajos y errores | SQS y DLQ | Pendiente |
 | Diccionarios, particiones y resultados | S3 | Pendiente |
 | Catálogo y estados de trabajos | DynamoDB | Pendiente |
@@ -34,6 +34,12 @@ La primera API usa una factoría de aplicación y el puerto `GraphRepository`. E
 adaptador `InMemoryGraphRepository` está protegido para acceso concurrente dentro
 de un proceso, pero no ofrece durabilidad ni estado compartido. Esta separación
 permite reemplazarlo posteriormente sin acoplar FastAPI al SDK de AWS.
+
+La máquina de estados local separa `JobRepository`, `GraphWordWorker` y la API. Usa
+leases y tokens por intento, por lo que una confirmación tardía se rechaza. El
+adaptador en memoria hace atómica la creación y puesta en cola solo dentro de un
+proceso; no permite ejecutar API y workers en procesos separados y no resuelve la
+dualidad DynamoDB/SQS.
 
 ## Flujo distribuido propuesto
 

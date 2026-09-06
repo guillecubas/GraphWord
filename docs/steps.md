@@ -24,6 +24,13 @@
     motor con grados, caminos acotados y subgrafos densos.
 11. `docs: document complete synchronous API contracts`: registra límites,
     completitud y semántica de las ocho rutas actuales.
+12. `feat: add leased job state machine and worker`: implementa estados, leases,
+    tokens de intento, reintentos y el servicio worker.
+13. `feat: add asynchronous graph build contracts`: añade creación 202 y consulta
+    de estado por HTTP.
+14. `fix: version the asynchronous job API`: actualiza OpenAPI a 0.4.0.
+15. `docs: explain local job guarantees and limits`: documenta invariantes y separa
+    con precisión el prototipo local de la arquitectura distribuida.
 
 La rama anterior de migración Java no es un requisito. Este cambio parte de
 `public-clean` en `b0f678a`. El parche Python reemplaza al parche Java de la conversación.
@@ -63,8 +70,8 @@ cada push. Los identificadores de las ejecuciones verificadas figuran en
 
 ## Siguientes etapas
 
-1. Definir la máquina de estados de trabajos y convertir construcción y búsquedas
-   costosas en operaciones asíncronas con contratos 202.
+1. Implementar adaptadores locales persistentes para ejecutar API y worker como
+   procesos diferentes y probar recuperación tras reinicio.
 2. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
 3. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.
 4. Desplegar infraestructura AWS según cuenta y permisos, y automatizar su despliegue.
