@@ -124,10 +124,10 @@ def create_app(
     selected_job_repository = job_repository or InMemoryJobRepository()
     application = FastAPI(
         title="GraphWord API",
-        version="0.3.0",
+        version="0.4.0",
         description=(
-            "Local synchronous milestone. Its in-memory repository is not shared "
-            "between replicas and is not the final distributed architecture."
+            "Local API and leased-job milestone. Its in-memory repositories are "
+            "not shared between processes and are not the final distributed architecture."
         ),
     )
 
