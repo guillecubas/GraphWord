@@ -64,14 +64,14 @@ mejor encontrado: no se presenta como máximo garantizado.
 Es un criterio estructural reproducible, no una partición por modularidad como
 Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
 
-Pendiente: API asíncrona de trabajos, persistencia compartida, workers,
-infraestructura y demostración AWS.
+Pendiente: convertir construcción y consultas costosas en trabajos asíncronos,
+añadir persistencia compartida, workers, infraestructura y demostración AWS.
 
 ## API local
 
 Arrancar con `uvicorn graphword.api:app --reload`. La documentación interactiva
-queda en `http://127.0.0.1:8000/docs`. La primera versión permite crear un grafo,
-consultar su resumen y calcular un camino mínimo:
+queda en `http://127.0.0.1:8000/docs`. La versión local permite crear un grafo y
+consultar resumen, grados, aislados, caminos y subgrafos `k-core`:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/graphs \

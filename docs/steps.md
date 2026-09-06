@@ -20,6 +20,10 @@
    mínimo por HTTP, un puerto de almacenamiento y cinco pruebas de contrato.
 9. `docs: describe the first local HTTP milestone`: documenta ejecución, endpoints
    y las limitaciones explícitas del repositorio en memoria.
+10. `feat: expose bounded graph queries over HTTP`: completa la superficie HTTP del
+    motor con grados, caminos acotados y subgrafos densos.
+11. `docs: document complete synchronous API contracts`: registra límites,
+    completitud y semántica de las ocho rutas actuales.
 
 La rama anterior de migración Java no es un requisito. Este cambio parte de
 `public-clean` en `b0f678a`. El parche Python reemplaza al parche Java de la conversación.
@@ -52,18 +56,19 @@ git push -u origin refactor/python-distributed
 en `public-clean`, puede haber conflictos: no usar `reset --hard`; revisar el conflicto
 o cancelar solo la aplicación del parche con `git am --abort`.
 
-La conexión GitHub de esta conversación rechazó la creación de una rama con
-`403 Resource not accessible by integration`. No se ha publicado esta rama ni
-ejecutado el workflow remoto. Se necesita acceso de escritura o el push desde tu equipo.
+El intento de la conversación anterior recibió un error 403, pero en este entorno
+la rama `refactor/python-distributed` sí se publicó y GitHub Actions se ejecuta en
+cada push. Los identificadores de las ejecuciones verificadas figuran en
+`docs/validation.md`.
 
 ## Siguientes etapas
 
-1. Exponer por HTTP grados, caminos acotados y `k-core` con sus contratos completos.
-2. Convertir construcción y búsquedas costosas en trabajos asíncronos.
-3. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
-4. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.
-5. Desplegar infraestructura AWS según cuenta y permisos, y automatizar su despliegue.
-6. Medir escalabilidad, reunir informes de pruebas y preparar la demostración.
+1. Definir la máquina de estados de trabajos y convertir construcción y búsquedas
+   costosas en operaciones asíncronas con contratos 202.
+2. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
+3. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.
+4. Desplegar infraestructura AWS según cuenta y permisos, y automatizar su despliegue.
+5. Medir escalabilidad, reunir informes de pruebas y preparar la demostración.
 
 Antes de la fase AWS hay que saber si se usa AWS Academy/Learner Lab o una cuenta
 propia. No hacen falta claves ni contraseñas pegadas en la conversación.

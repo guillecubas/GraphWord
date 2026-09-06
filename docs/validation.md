@@ -71,3 +71,13 @@ La construcción `docker build -t graphword-python-api:test .` se intentó y fal
 antes de procesar el Dockerfile porque no estaba iniciado el motor Linux de Docker
 Desktop (`dockerDesktopLinuxEngine`). Por tanto, el Dockerfile está preparado pero
 la imagen no se considera verificada.
+
+## Validación de las consultas HTTP completas
+
+Se añadieron tres pruebas de contrato para enumeración truncada, camino largo sin
+optimalidad demostrada, selección por grado, aislados y `k-core`; las validaciones
+también cubren los máximos permitidos por la API. Resultado local acumulado:
+26 pruebas, 0 errores y 0 fallos con Python 3.12.14.
+
+El esquema OpenAPI 0.3.0 contiene ocho rutas. Esta validación prueba los contratos
+HTTP síncronos y el adaptador local, no ejecución asíncrona ni distribuida.
