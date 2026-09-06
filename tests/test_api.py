@@ -4,16 +4,20 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from graphword.api import create_app
+from graphword.jobs import InMemoryJobRepository
 from graphword.storage import InMemoryGraphRepository
+from graphword.worker import GraphWordWorker
 
 
 GRAPH_ID = UUID("00000000-0000-0000-0000-000000000001")
+JOB_ID = UUID("00000000-0000-0000-0000-000000000002")
 
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
-        repository = InMemoryGraphRepository(id_factory=lambda: GRAPH_ID)
-        self.client = TestClient(create_app(repository))
+        self.graphs = InMemoryGraphRepository(id_factory=lambda: GRAPH_ID)
+        self.jobs = InMemoryJobRepository(id_factory=lambda: JOB_ID)
+        self.client = TestClient(create_app(self.graphs, self.jobs))
 
     def test_health_discloses_local_storage(self):
         response = self.client.get("/health")
@@ -43,6 +47,33 @@ class ApiTests(unittest.TestCase):
             self.client.get(f"/v1/graphs/{GRAPH_ID}").json(),
             response.json(),
         )
+
+    def test_graph_build_job_returns_202_and_worker_publishes_graph(self):
+        submitted = self.client.post("/v1/jobs/graph-builds", json={
+            "words": ["cat", "bat", "bad", "dad"],
+            "partitions": 2,
+        })
+        self.assertEqual(submitted.status_code, 202)
+        self.assertEqual(submitted.headers["location"], f"/v1/jobs/{JOB_ID}")
+        self.assertEqual(submitted.json()["status"], "PENDING")
+        self.assertEqual(submitted.json()["attempts"], 0)
+        self.assertIsNone(submitted.json()["result"])
+
+        worker = GraphWordWorker(self.jobs, self.graphs)
+        self.assertTrue(worker.run_once("worker-a"))
+        completed = self.client.get(f"/v1/jobs/{JOB_ID}")
+        self.assertEqual(completed.status_code, 200)
+        self.assertEqual(completed.json()["status"], "SUCCEEDED")
+        self.assertEqual(completed.json()["attempts"], 1)
+        self.assertEqual(completed.json()["result"], {"graph_id": str(GRAPH_ID)})
+        self.assertEqual(self.client.get(f"/v1/graphs/{GRAPH_ID}").status_code, 200)
+
+    def test_missing_job_has_a_specific_error(self):
+        missing = self.client.get(
+            "/v1/jobs/00000000-0000-0000-0000-000000000099"
+        )
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.json()["detail"]["code"], "job_not_found")
 
     def test_shortest_path_uses_the_stored_graph(self):
         self.client.post("/v1/graphs", json={

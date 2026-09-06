@@ -1,6 +1,7 @@
 """Versioned HTTP adapter for the local GraphWord engine."""
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -17,6 +18,14 @@ from graphword.graph import (
     nodes_by_degree,
     shortest_path,
     summary,
+)
+from graphword.jobs import (
+    InMemoryJobRepository,
+    Job,
+    JobKind,
+    JobNotFoundError,
+    JobRepository,
+    JobStatus,
 )
 from graphword.storage import GraphNotFoundError, GraphRepository, InMemoryGraphRepository
 
@@ -90,9 +99,29 @@ class DenseSubgraphsResponse(BaseModel):
     subgraphs: list[list[str]]
 
 
-def create_app(repository: GraphRepository | None = None) -> FastAPI:
+class JobResponse(BaseModel):
+    job_id: UUID
+    kind: JobKind
+    status: JobStatus
+    attempts: int
+    max_attempts: int
+    result: dict | None
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+def job_response(job: Job) -> JobResponse:
+    return JobResponse(**asdict(job))
+
+
+def create_app(
+    repository: GraphRepository | None = None,
+    job_repository: JobRepository | None = None,
+) -> FastAPI:
     """Application factory keeps the storage adapter replaceable and testable."""
     selected_repository = repository or InMemoryGraphRepository()
+    selected_job_repository = job_repository or InMemoryJobRepository()
     application = FastAPI(
         title="GraphWord API",
         version="0.3.0",
@@ -105,7 +134,11 @@ def create_app(repository: GraphRepository | None = None) -> FastAPI:
     def get_repository() -> GraphRepository:
         return selected_repository
 
+    def get_job_repository() -> JobRepository:
+        return selected_job_repository
+
     RepositoryDependency = Annotated[GraphRepository, Depends(get_repository)]
+    JobRepositoryDependency = Annotated[JobRepository, Depends(get_job_repository)]
 
     def find_graph(graph_id: UUID, graph_repository: GraphRepository) -> Graph:
         try:
@@ -122,9 +155,47 @@ def create_app(repository: GraphRepository | None = None) -> FastAPI:
             detail={"code": "unknown_word", "message": str(error)},
         )
 
+    def find_job(job_id: UUID, jobs: JobRepository) -> Job:
+        try:
+            return jobs.get(job_id)
+        except JobNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "job_not_found", "message": str(job_id)},
+            ) from error
+
     @application.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
         return {"status": "ok", "storage": "in-memory-local"}
+
+    @application.post(
+        "/v1/jobs/graph-builds",
+        response_model=JobResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["jobs"],
+    )
+    def create_graph_build_job(
+        request: CreateGraphRequest,
+        response: Response,
+        jobs: JobRepositoryDependency,
+    ) -> JobResponse:
+        job = jobs.create(
+            JobKind.GRAPH_BUILD,
+            {"words": request.words, "partitions": request.partitions},
+        )
+        response.headers["Location"] = f"/v1/jobs/{job.job_id}"
+        return job_response(job)
+
+    @application.get(
+        "/v1/jobs/{job_id}",
+        response_model=JobResponse,
+        tags=["jobs"],
+    )
+    def get_job(
+        job_id: UUID,
+        jobs: JobRepositoryDependency,
+    ) -> JobResponse:
+        return job_response(find_job(job_id, jobs))
 
     @application.post(
         "/v1/graphs",
