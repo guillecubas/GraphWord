@@ -1,7 +1,7 @@
 # Protocolo de trabajos
 
-Estado: máquina de estados y worker implementados con adaptadores en memoria; no
-desplegados ni compartidos entre procesos.
+Estado: máquina de estados, worker y adaptadores SQLite compartidos entre procesos
+locales; no desplegados en AWS.
 
 ```mermaid
 stateDiagram-v2
@@ -37,13 +37,14 @@ error y resultado. Cuando termina correctamente, `result.graph_id` identifica el
 grafo consultable.
 
 La API no ejecuta el trabajo en segundo plano por sí misma. `GraphWordWorker` es un
-servicio de aplicación separado que consume `JobRepository`. En las pruebas ambos
-comparten una instancia en memoria; procesos o réplicas reales no compartirían ese
-estado.
+servicio de aplicación separado que consume `JobRepository`. El adaptador SQLite
+permite que la API y uno o más workers locales abran conexiones independientes al
+mismo fichero. `BEGIN IMMEDIATE` serializa la selección y actualización de un
+trabajo, impidiendo una doble reclamación.
 
 ## Paso pendiente para AWS
 
-El bloqueo y la cola son atómicos únicamente porque el adaptador local usa un mismo
-`RLock`. Esto no resuelve la separación DynamoDB/SQS. La siguiente persistencia debe
+En SQLite, catálogo y cola son filas de una misma base y crear `PENDING` es una sola
+transacción. Esto no resuelve la separación DynamoDB/SQS. Los adaptadores AWS deben
 usar escritura condicional para reclamar y una bandeja de salida o reconciliador
 persistente para recuperar el fallo entre registrar el trabajo y enviarlo a SQS.

@@ -1,6 +1,6 @@
 # Arquitectura objetivo — Python
 
-Estado: propuesta; el código actual implementa únicamente el motor local.
+Estado: prototipo local multiproceso implementado; arquitectura AWS aún propuesta.
 
 ## Decisión
 
@@ -23,6 +23,7 @@ no resuelve eso: se debe cambiar la arquitectura.
 | Reparto de trabajos y errores | SQS y DLQ | Pendiente |
 | Diccionarios, particiones y resultados | S3 | Pendiente |
 | Catálogo y estados de trabajos | DynamoDB | Pendiente |
+| Persistencia de desarrollo | SQLite con WAL | Implementada y probada |
 | Acceso, imágenes y observabilidad | ALB, ECR, IAM y CloudWatch | Pendiente |
 
 FastAPI ya forma parte del adaptador local; Boto3 se incorporará con los adaptadores
@@ -30,16 +31,16 @@ AWS. ECS/Fargate o ECS/EC2 se concretará según las restricciones de AWS Academ
 cuenta propia. La infraestructura deberá quedar declarada y probada, con su coste
 y procedimiento de eliminación documentados. No hay recursos desplegados aquí.
 
-La primera API usa una factoría de aplicación y el puerto `GraphRepository`. El
-adaptador `InMemoryGraphRepository` está protegido para acceso concurrente dentro
-de un proceso, pero no ofrece durabilidad ni estado compartido. Esta separación
-permite reemplazarlo posteriormente sin acoplar FastAPI al SDK de AWS.
+La API usa una factoría de aplicación y los puertos `GraphRepository` y
+`JobRepository`. Hay adaptadores en memoria para pruebas unitarias y adaptadores
+SQLite para persistencia y coordinación multiproceso local. Esta separación permite
+reemplazarlos posteriormente sin acoplar FastAPI al SDK de AWS.
 
 La máquina de estados local separa `JobRepository`, `GraphWordWorker` y la API. Usa
 leases y tokens por intento, por lo que una confirmación tardía se rechaza. El
-adaptador en memoria hace atómica la creación y puesta en cola solo dentro de un
-proceso; no permite ejecutar API y workers en procesos separados y no resuelve la
-dualidad DynamoDB/SQS.
+adaptador SQLite modela la cola mediante trabajos `PENDING` y reclama con una
+transacción de escritura. Permite procesos separados en una máquina, pero sigue
+siendo un único punto local y no resuelve la dualidad DynamoDB/SQS.
 
 ## Flujo distribuido propuesto
 

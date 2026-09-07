@@ -31,6 +31,12 @@
 14. `fix: version the asynchronous job API`: actualiza OpenAPI a 0.4.0.
 15. `docs: explain local job guarantees and limits`: documenta invariantes y separa
     con precisión el prototipo local de la arquitectura distribuida.
+16. `feat: add persistent SQLite job and graph adapters`: añade persistencia,
+    reclamación transaccional y pruebas de reapertura y concurrencia.
+17. `feat: run local API and worker as separate processes`: añade entradas de
+    ejecución y una prueba real del worker en otro intérprete.
+18. `docs: document the SQLite multi-process milestone`: registra comandos,
+    garantías, evidencia y límites.
 
 La rama anterior de migración Java no es un requisito. Este cambio parte de
 `public-clean` en `b0f678a`. El parche Python reemplaza al parche Java de la conversación.
@@ -70,11 +76,11 @@ cada push. Los identificadores de las ejecuciones verificadas figuran en
 
 ## Siguientes etapas
 
-1. Implementar adaptadores locales persistentes para ejecutar API y worker como
-   procesos diferentes y probar recuperación tras reinicio.
-2. Añadir S3 y DynamoDB para que no exista un grafo global mutable en la API.
-3. Añadir SQS, workers, reducción, idempotencia y recuperación de fallos.
-4. Desplegar infraestructura AWS según cuenta y permisos, y automatizar su despliegue.
+1. Dividir cada construcción en trabajos de partición y un trabajo reductor para
+   demostrar reparto de un mismo grafo entre varios workers.
+2. Añadir S3 y DynamoDB para que no exista un fichero SQLite compartido.
+3. Añadir SQS, DLQ, reconciliación e idempotencia con adaptadores AWS.
+4. Desplegar infraestructura según cuenta y permisos, y automatizar su despliegue.
 5. Medir escalabilidad, reunir informes de pruebas y preparar la demostración.
 
 Antes de la fase AWS hay que saber si se usa AWS Academy/Learner Lab o una cuenta

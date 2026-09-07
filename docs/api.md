@@ -35,10 +35,10 @@ Los aislados se consultan con `degree=0`. Los nodos de grado máximo ya figuran 
 resumen del grafo. `dense-subgraphs` usa `k-core`; no afirma aplicar Louvain ni otra
 partición por modularidad.
 
-La creación es síncrona y el almacenamiento es local al proceso. La API todavía no
-ofrece ejecución distribuida. El endpoint de trabajos sí devuelve 202, pero su
-repositorio y su cola son adaptadores locales en memoria; se conserva temporalmente
-la creación síncrona para comparar ambos contratos durante la migración.
+La creación directa sigue siendo síncrona y se conserva temporalmente para comparar
+ambos contratos durante la migración. El endpoint de trabajos devuelve 202 y, usando
+`graphword.local_app`, API y workers comparten SQLite entre procesos locales. Esto
+ofrece persistencia y coordinación en una máquina, no ejecución distribuida.
 
 Un trabajo pasa por `PENDING`, `RUNNING` y `SUCCEEDED` o `FAILED`. Los detalles del
 lease, reintentos y garantías se documentan en `docs/jobs.md`.

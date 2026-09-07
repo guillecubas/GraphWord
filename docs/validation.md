@@ -92,3 +92,19 @@ trabajo. Resultado local acumulado: 33 pruebas, 0 errores y 0 fallos.
 OpenAPI 0.4.0 contiene diez rutas. La prueba de extremo a extremo comparte los
 repositorios en memoria entre API y worker; no demuestra comunicación entre procesos,
 persistencia tras reinicio, SQS, DynamoDB ni AWS.
+
+## Validación SQLite multiproceso
+
+Se añadieron cinco pruebas SQLite para reapertura, persistencia, coordinación entre
+instancias, reclamación concurrente, recuperación de lease y ejecución del worker en
+otro intérprete. Resultado local acumulado: 38 pruebas, 0 errores y 0 fallos. La
+prueba de doble reclamación se repitió 20 veces sin que dos workers obtuvieran el
+mismo trabajo.
+
+Además se ejecutaron Uvicorn y `worker_cli` como procesos separados sobre una base
+temporal. La API creó un trabajo `PENDING`; el worker lo llevó a `SUCCEEDED` en un
+intento y la API leyó el grafo resultante de 4 nodos y 3 aristas. Los datos temporales
+se eliminaron al terminar.
+
+Esto valida separación de procesos y recuperación local, pero no reparto de las
+particiones de un grafo entre varios workers, despliegue, SQS, DynamoDB ni AWS.

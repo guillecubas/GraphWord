@@ -26,6 +26,9 @@ El ejemplo devuelve 20 nodos, 29 aristas, 2 componentes y el camino
 | `graphword/graph.py` | Normalización, constructor por patrones, unión, BFS, componentes y grados |
 | `graphword/api.py` | Contratos HTTP versionados y factoría FastAPI |
 | `graphword/storage.py` | Puerto de persistencia y adaptador local en memoria |
+| `graphword/sqlite_storage.py` | Persistencia SQLite compartida entre procesos locales |
+| `graphword/local_app.py` | Entrada Uvicorn configurada con SQLite |
+| `graphword/worker_cli.py` | Worker local continuo o de una sola ejecución |
 | `graphword/__main__.py` | Demostración por terminal; lectura del fichero y salida JSON |
 | `tests/test_graph.py` | 12 pruebas, incluyendo comparación con un constructor independiente |
 | `.github/workflows/ci.yml` | Pruebas en Python 3.11/3.12 y conservación de sus resultados |
@@ -64,13 +67,13 @@ mejor encontrado: no se presenta como máximo garantizado.
 Es un criterio estructural reproducible, no una partición por modularidad como
 Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
 
-Implementado localmente: contrato 202 para construir grafos, máquina de estados con
-leases y worker independiente de FastAPI. Pendiente: almacenamiento y cola
-compartidos, distribuir particiones entre varios workers, infraestructura y AWS.
+Implementado localmente: contrato 202, máquina de estados con leases, persistencia
+SQLite y worker ejecutable en otro proceso. Pendiente: distribuir las particiones de
+un mismo grafo entre varios workers, adaptadores AWS, infraestructura y despliegue.
 
 ## API local
 
-Arrancar con `uvicorn graphword.api:app --reload`. La documentación interactiva
+Arrancar con `uvicorn graphword.local_app:app --reload`. La documentación interactiva
 queda en `http://127.0.0.1:8000/docs`. La versión local permite crear un grafo y
 consultar resumen, grados, aislados, caminos y subgrafos `k-core`:
 
@@ -80,13 +83,16 @@ curl -X POST http://127.0.0.1:8000/v1/graphs \
   -d '{"words":["cat","bat","bad","dad"],"partitions":2}'
 ```
 
-El repositorio actual vive en memoria dentro de un único proceso. Reiniciar la API
-borra los grafos y dos réplicas no comparten datos. Esta limitación es intencionada
-y está aislada tras `GraphRepository`; no constituye todavía arquitectura distribuida.
+Por defecto, `local_app` crea `var/graphword.db`. Para elegir otra ruta se usa
+`GRAPHWORD_DB_PATH`. En otra terminal, arrancar un worker contra el mismo fichero:
 
-`POST /v1/jobs/graph-builds` crea un trabajo `PENDING`. En esta etapa la API y el
-worker solo pueden colaborar si reciben las mismas instancias de repositorio dentro
-de un proceso de prueba. No hay un worker de fondo oculto dentro de FastAPI.
+```bash
+python -m graphword.worker_cli --database var/graphword.db --worker-id worker-1
+```
+
+`POST /v1/jobs/graph-builds` crea un trabajo `PENDING`; el worker lo reclama y el
+cliente consulta su evolución. API y worker ya pueden ser procesos distintos, pero
+siguen dependiendo de un único fichero local: esto no es aún un sistema distribuido.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.
 Sus fuentes y licencias deben documentarse antes de presentarlos como un corpus real.
