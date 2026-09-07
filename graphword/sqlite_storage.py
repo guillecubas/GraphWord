@@ -9,7 +9,7 @@ import sqlite3
 from typing import Any, Iterator
 from uuid import UUID, uuid4
 
-from graphword.graph import Graph
+from graphword.graph import Graph, normalize_words
 from graphword.jobs import (
     ClaimedJob,
     InvalidJobTransition,
@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE INDEX IF NOT EXISTS jobs_pending_order
 ON jobs(status, created_at, job_id);
+
+CREATE TABLE IF NOT EXISTS job_dependencies (
+    parent_id TEXT NOT NULL REFERENCES jobs(job_id),
+    child_id TEXT NOT NULL REFERENCES jobs(job_id),
+    PRIMARY KEY(parent_id, child_id)
+);
 """
 
 
@@ -68,6 +74,7 @@ class _SQLiteAdapter:
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database, timeout=5)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 5000")
         return connection
 
@@ -147,6 +154,37 @@ class SQLiteJobRepository(_SQLiteAdapter):
         self._clock = clock
         super().__init__(database)
 
+    def create_partitioned_build(self, words: list[str], partitions: int) -> Job:
+        """Atomically register all partitions and their waiting reducer."""
+        if not 1 <= partitions <= 64:
+            raise ValueError("partitions must be between 1 and 64")
+        clean = normalize_words(words)
+        if not clean:
+            raise ValueError("no valid words supplied")
+        parent_id = uuid4()
+        child_ids = [uuid4() for _ in range(partitions)]
+        now = _timestamp(self._clock())
+        records = [(parent_id, JobKind.REDUCE_GRAPH, {
+            "partition_jobs": [str(child_id) for child_id in child_ids],
+        })]
+        records.extend((child_id, JobKind.BUILD_PARTITION, {
+            "words": clean, "partition": index, "partitions": partitions,
+        }) for index, child_id in enumerate(child_ids))
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for job_id, kind, payload in records:
+                connection.execute(
+                    """INSERT INTO jobs(job_id, kind, status, payload_json,
+                       attempts, max_attempts, created_at, updated_at)
+                       VALUES (?, ?, 'PENDING', ?, 0, 3, ?, ?)""",
+                    (str(job_id), kind.value, _json(payload), now, now),
+                )
+            connection.executemany(
+                "INSERT INTO job_dependencies(parent_id, child_id) VALUES (?, ?)",
+                [(str(parent_id), str(child_id)) for child_id in child_ids],
+            )
+        return self.get(parent_id)
+
     def create(
         self,
         kind: JobKind,
@@ -187,13 +225,12 @@ class SQLiteJobRepository(_SQLiteAdapter):
             raise ValueError("worker_id must not be empty")
         if lease_seconds < 1:
             raise ValueError("lease_seconds must be positive")
-        now_value = self._clock()
-        now = _timestamp(now_value)
-        lease_expires_at = now_value + timedelta(seconds=lease_seconds)
-        token = self._token_factory()
-
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            # Read the clock after acquiring the lock, not before waiting for it.
+            now_value = self._clock()
+            now = _timestamp(now_value)
+            lease_expires_at = now_value + timedelta(seconds=lease_seconds)
             connection.execute(
                 """
                 UPDATE jobs
@@ -205,10 +242,15 @@ class SQLiteJobRepository(_SQLiteAdapter):
                 (JobStatus.PENDING.value, JobStatus.FAILED.value, now,
                  JobStatus.RUNNING.value, now),
             )
+            self._propagate_failures(connection, now)
             row = connection.execute(
                 """
                 SELECT * FROM jobs
-                WHERE status = ?
+                WHERE status = ? AND NOT EXISTS (
+                    SELECT 1 FROM job_dependencies AS d
+                    JOIN jobs AS child ON child.job_id = d.child_id
+                    WHERE d.parent_id = jobs.job_id AND child.status != 'SUCCEEDED'
+                )
                 ORDER BY created_at, job_id
                 LIMIT 1
                 """,
@@ -216,6 +258,7 @@ class SQLiteJobRepository(_SQLiteAdapter):
             ).fetchone()
             if row is None:
                 return None
+            token = self._token_factory()
             attempt = row["attempts"] + 1
             connection.execute(
                 """
@@ -239,9 +282,9 @@ class SQLiteJobRepository(_SQLiteAdapter):
             )
 
     def complete(self, claim: ClaimedJob, result: Mapping[str, Any]) -> Job:
-        now = self._clock()
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
             self._require_active(connection, claim, now)
             connection.execute(
                 """
@@ -256,9 +299,9 @@ class SQLiteJobRepository(_SQLiteAdapter):
         return self.get(claim.job_id)
 
     def fail(self, claim: ClaimedJob, error: str, retryable: bool = True) -> Job:
-        now = self._clock()
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
             row = self._require_active(connection, claim, now)
             status = (
                 JobStatus.PENDING
@@ -274,7 +317,20 @@ class SQLiteJobRepository(_SQLiteAdapter):
                 """,
                 (status.value, error, _timestamp(now), str(claim.job_id)),
             )
+            self._propagate_failures(connection, _timestamp(now))
         return self.get(claim.job_id)
+
+    @staticmethod
+    def _propagate_failures(connection: sqlite3.Connection, now: str) -> None:
+        # This workflow has exactly one dependency level: partitions -> reducer.
+        connection.execute(
+            """UPDATE jobs SET status = 'FAILED', error = 'partition job failed',
+               updated_at = ? WHERE status = 'PENDING' AND EXISTS (
+                   SELECT 1 FROM job_dependencies AS d
+                   JOIN jobs AS child ON child.job_id = d.child_id
+                   WHERE d.parent_id = jobs.job_id AND child.status = 'FAILED'
+               )""", (now,),
+        )
 
     @staticmethod
     def _require_active(

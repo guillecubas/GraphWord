@@ -26,7 +26,7 @@ class ApiTests(unittest.TestCase):
             "status": "ok",
             "storage": "in-memory-local",
         })
-        self.assertEqual(self.client.get("/openapi.json").json()["info"]["version"], "0.4.0")
+        self.assertEqual(self.client.get("/openapi.json").json()["info"]["version"], "0.5.0")
 
     def test_create_and_read_graph(self):
         response = self.client.post("/v1/graphs", json={

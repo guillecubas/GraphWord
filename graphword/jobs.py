@@ -13,6 +13,8 @@ from uuid import UUID, uuid4
 
 class JobKind(StrEnum):
     GRAPH_BUILD = "GRAPH_BUILD"
+    BUILD_PARTITION = "BUILD_PARTITION"
+    REDUCE_GRAPH = "REDUCE_GRAPH"
 
 
 class JobStatus(StrEnum):
@@ -69,6 +71,10 @@ class JobRepository(Protocol):
     def complete(self, claim: ClaimedJob, result: Mapping[str, Any]) -> Job: ...
 
     def fail(self, claim: ClaimedJob, error: str, retryable: bool = True) -> Job: ...
+
+
+class PartitionedBuildRepository(Protocol):
+    def create_partitioned_build(self, words: list[str], partitions: int) -> Job: ...
 
 
 @dataclass

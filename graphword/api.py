@@ -26,6 +26,7 @@ from graphword.jobs import (
     JobNotFoundError,
     JobRepository,
     JobStatus,
+    PartitionedBuildRepository,
 )
 from graphword.storage import GraphNotFoundError, GraphRepository, InMemoryGraphRepository
 
@@ -120,13 +121,14 @@ def create_app(
     job_repository: JobRepository | None = None,
     *,
     storage_label: str = "in-memory-local",
+    partitioned_builds: PartitionedBuildRepository | None = None,
 ) -> FastAPI:
     """Application factory keeps the storage adapter replaceable and testable."""
     selected_repository = repository or InMemoryGraphRepository()
     selected_job_repository = job_repository or InMemoryJobRepository()
     application = FastAPI(
         title="GraphWord API",
-        version="0.4.0",
+        version="0.5.0",
         description=(
             "Local API and leased-job milestone. The configured adapters are not "
             "the final AWS distributed architecture."
@@ -169,6 +171,22 @@ def create_app(
     @application.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
         return {"status": "ok", "storage": storage_label}
+
+    @application.post(
+        "/v1/jobs/partitioned-builds", response_model=JobResponse,
+        status_code=status.HTTP_202_ACCEPTED, tags=["jobs"],
+    )
+    def create_partitioned_build(request: CreateGraphRequest, response: Response) -> JobResponse:
+        if partitioned_builds is None:
+            raise HTTPException(503, detail={"code": "partitioned_builds_unavailable"})
+        try:
+            job = partitioned_builds.create_partitioned_build(request.words, request.partitions)
+        except ValueError as error:
+            raise HTTPException(422, detail={
+                "code": "invalid_build", "message": str(error),
+            }) from error
+        response.headers["Location"] = f"/v1/jobs/{job.job_id}"
+        return job_response(job)
 
     @application.post(
         "/v1/jobs/graph-builds",

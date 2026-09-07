@@ -6,8 +6,10 @@ from graphword.sqlite_storage import SQLiteGraphRepository, SQLiteJobRepository
 
 
 database = database_path()
+jobs = SQLiteJobRepository(database)
 app = create_app(
     SQLiteGraphRepository(database),
-    SQLiteJobRepository(database),
+    jobs,
     storage_label="sqlite-local-shared",
+    partitioned_builds=jobs,
 )
