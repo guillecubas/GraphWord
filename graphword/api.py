@@ -118,6 +118,8 @@ def job_response(job: Job) -> JobResponse:
 def create_app(
     repository: GraphRepository | None = None,
     job_repository: JobRepository | None = None,
+    *,
+    storage_label: str = "in-memory-local",
 ) -> FastAPI:
     """Application factory keeps the storage adapter replaceable and testable."""
     selected_repository = repository or InMemoryGraphRepository()
@@ -126,8 +128,8 @@ def create_app(
         title="GraphWord API",
         version="0.4.0",
         description=(
-            "Local API and leased-job milestone. Its in-memory repositories are "
-            "not shared between processes and are not the final distributed architecture."
+            "Local API and leased-job milestone. The configured adapters are not "
+            "the final AWS distributed architecture."
         ),
     )
 
@@ -166,7 +168,7 @@ def create_app(
 
     @application.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
-        return {"status": "ok", "storage": "in-memory-local"}
+        return {"status": "ok", "storage": storage_label}
 
     @application.post(
         "/v1/jobs/graph-builds",

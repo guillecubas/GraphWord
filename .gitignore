@@ -16,3 +16,7 @@ test-results/
 .aws/
 *.pem
 *.key
+var/
+*.db
+*.db-wal
+*.db-shm

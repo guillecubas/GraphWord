@@ -1,6 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import json
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from uuid import UUID
@@ -95,6 +98,29 @@ class SQLiteStorageTests(unittest.TestCase):
             jobs.complete(old_claim, {"graph_id": "stale"})
         completed = restarted.complete(new_claim, {"graph_id": str(GRAPH_ID)})
         self.assertEqual(completed.status, JobStatus.SUCCEEDED)
+
+    def test_worker_cli_processes_job_in_a_separate_process(self):
+        jobs = SQLiteJobRepository(self.database, id_factory=lambda: JOB_ID)
+        jobs.create(JobKind.GRAPH_BUILD, {
+            "words": ["cat", "bat", "bad", "dad"], "partitions": 2,
+        })
+        root = Path(__file__).resolve().parents[1]
+        output = subprocess.check_output(
+            [
+                sys.executable, "-m", "graphword.worker_cli",
+                "--database", str(self.database), "--worker-id", "process-b",
+                "--once",
+            ],
+            cwd=root,
+            text=True,
+        )
+        self.assertEqual(json.loads(output), {
+            "worker_id": "process-b", "processed": True,
+        })
+        completed = jobs.get(JOB_ID)
+        self.assertEqual(completed.status, JobStatus.SUCCEEDED)
+        graph_id = UUID(completed.result["graph_id"])
+        self.assertEqual(SQLiteGraphRepository(self.database).get(graph_id)["cat"], {"bat"})
 
 
 if __name__ == "__main__":
