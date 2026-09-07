@@ -1,5 +1,17 @@
 # Validación de esta etapa
 
+## Hito de particiones y reducción (estado actual)
+
+43 pruebas pasan localmente en Python 3.12.14. La nueva prueba HTTP con TestClient
+envía una construcción y ejecuta dos procesos worker distintos, uno por partición,
+antes de reducir. El grafo coincide con el constructor local y conserva aislados.
+No se mide paralelismo temporal ni mejora de rendimiento con esta prueba.
+
+También se prueban espera del reductor, fallo definitivo de una partición,
+reintento con rechazo de confirmación antigua y rollback de toda la creación si
+falla la inserción de dependencias. Los informes posteriores de este archivo
+describen hitos anteriores y sus limitaciones en ese momento.
+
 Entorno local: Python 3.12.13.
 
 Comando ejecutado: `python -m unittest discover -s tests -v`.

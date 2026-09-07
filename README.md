@@ -68,8 +68,10 @@ Es un criterio estructural reproducible, no una partición por modularidad como
 Louvain. Componentes conexas y subgrafos densos siguen siendo conceptos distintos.
 
 Implementado localmente: contrato 202, máquina de estados con leases, persistencia
-SQLite y worker ejecutable en otro proceso. Pendiente: distribuir las particiones de
-un mismo grafo entre varios workers, adaptadores AWS, infraestructura y despliegue.
+SQLite y workers ejecutables en procesos distintos. Las construcciones enviadas a
+`/v1/jobs/partitioned-builds` reparten un mismo grafo en trabajos de partición y un
+reductor. Véase [la demostración reproducible](docs/partitioned-builds.md).
+Pendiente: adaptadores AWS, infraestructura, despliegue y medidas de rendimiento.
 
 ## API local
 

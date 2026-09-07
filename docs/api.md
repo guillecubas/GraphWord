@@ -5,6 +5,7 @@ Estado: implementado y probado localmente; no desplegado.
 | Método y ruta | Resultado | Estado normal |
 |---|---|---|
 | `GET /health` | Salud y tipo de almacenamiento | 200 |
+| `POST /v1/jobs/partitioned-builds` | Particiones independientes y reductor (SQLite) | 202 |
 | `POST /v1/jobs/graph-builds` | Registra una construcción asíncrona | 202 |
 | `GET /v1/jobs/{job_id}` | Consulta estado, intentos y resultado | 200 |
 | `POST /v1/graphs` | Crea el grafo síncronamente | 201 |

@@ -76,8 +76,8 @@ cada push. Los identificadores de las ejecuciones verificadas figuran en
 
 ## Siguientes etapas
 
-1. Dividir cada construcción en trabajos de partición y un trabajo reductor para
-   demostrar reparto de un mismo grafo entre varios workers.
+1. Reforzar renovación de leases, observabilidad de intentos e idempotencia de
+   envíos antes de sustituir SQLite. El reparto local por particiones ya está probado.
 2. Añadir S3 y DynamoDB para que no exista un fichero SQLite compartido.
 3. Añadir SQS, DLQ, reconciliación e idempotencia con adaptadores AWS.
 4. Desplegar infraestructura según cuenta y permisos, y automatizar su despliegue.
