@@ -85,6 +85,24 @@ def compute_template(vpc, subnet, ami, bucket, artifact, profile):
             "Outputs": {name: {"Value": {"Ref": name + suffix}} for name in ("ApiNode", "WorkerNode")}}
 
 
+def build_release(config):
+    """Deterministic ZIP, readable by the non-root application user after unzip."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        def add_file(name, content):
+            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            archive.writestr(info, content)
+
+        for pattern in ("graphword/*.py", "scripts/bootstrap_aws.py", "scripts/smoke_aws.py", "pyproject.toml"):
+            for path in sorted(ROOT.glob(pattern)):
+                add_file(path.relative_to(ROOT).as_posix(), path.read_bytes())
+        add_file("deployment.json", json.dumps(config, sort_keys=True))
+    return buffer.getvalue()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", default="default")
@@ -109,18 +127,7 @@ def main():
     outputs = deploy(cf, "graphword-storage", json.loads((ROOT / "infra/storage.json").read_text()))
     config = dict(outputs, region=args.region, account=account)
     # Allowlist only application sources. Never zip .aws, .env, .venv or Git metadata.
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        def add_file(name, content):
-            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(info, content)
-
-        for pattern in ("graphword/*.py", "scripts/bootstrap_aws.py", "scripts/smoke_aws.py", "pyproject.toml"):
-            for path in sorted(ROOT.glob(pattern)):
-                add_file(path.relative_to(ROOT).as_posix(), path.read_bytes())
-        add_file("deployment.json", json.dumps(config, sort_keys=True))
-    content = buffer.getvalue()
+    content = build_release(config)
     digest = hashlib.sha256(content).hexdigest()
     artifact = f"releases/{digest}.zip"
     session.client("s3").put_object(Bucket=outputs["Bucket"], Key=artifact, Body=content,

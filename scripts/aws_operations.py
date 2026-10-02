@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["status", "smoke", "start", "stop", "tunnel-command"])
+    parser.add_argument("action", choices=["status", "logs", "smoke", "start", "stop", "tunnel-command"])
     parser.add_argument("--profile", default="default")
     args = parser.parse_args()
     config = json.loads((ROOT / "var/aws-deployment.json").read_text())
@@ -35,11 +35,17 @@ def main():
         print(f"aws ssm start-session --target {ids[0]} --document-name AWS-StartPortForwardingSession "
               f"--parameters portNumber=8000,localPortNumber=8000 --profile {args.profile} --region {config['region']}")
         return
-    targets = ids if args.action == "status" else ids[:1]
-    commands = (["cloud-init status --wait", "systemctl --no-pager status graphword-*",
-                 "tail -n 40 /var/log/cloud-init-output.log"] if args.action == "status" else
-                ["set -eu", "cd /opt/graphword", "set -a", ". ./service.env", "set +a",
-                 ".venv/bin/python scripts/smoke_aws.py"])
+    targets = ids if args.action in ("status", "logs") else ids[:1]
+    if args.action == "logs":
+        commands = ["journalctl --no-pager -n 50 -u graphword-worker -u graphword-api -u graphword-reconcile"]
+    elif args.action == "status":
+        commands = ["set -eu", "cloud-init status --wait", "tail -n 15 /var/log/cloud-init-output.log",
+                    "systemctl --no-pager status graphword-*",
+                    "systemctl is-active --quiet graphword-worker",
+                    "if test -f /etc/systemd/system/graphword-api.service; then systemctl is-active --quiet graphword-api graphword-reconcile; fi"]
+    else:
+        commands = ["set -eu", "cd /opt/graphword", "set -a", ". ./service.env", "set +a",
+                    ".venv/bin/python scripts/smoke_aws.py"]
     command_id = ssm.send_command(
         InstanceIds=targets, DocumentName="AWS-RunShellScript",
         Parameters={"commands": commands, "executionTimeout": ["600"]},
