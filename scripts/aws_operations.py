@@ -14,7 +14,7 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["status", "logs", "smoke", "start", "stop", "tunnel-command"])
-    parser.add_argument("--profile", default="default")
+    parser.add_argument("--profile", default=None)
     args = parser.parse_args()
     config = json.loads((ROOT / "var/aws-deployment.json").read_text())
     session = boto3.Session(profile_name=args.profile, region_name=config["region"])
@@ -33,7 +33,8 @@ def main():
         return
     if args.action == "tunnel-command":
         print(f"aws ssm start-session --target {ids[0]} --document-name AWS-StartPortForwardingSession "
-              f"--parameters portNumber=8000,localPortNumber=8000 --profile {args.profile} --region {config['region']}")
+              f"--parameters portNumber=8000,localPortNumber=8000 --region {config['region']}"
+              + (f" --profile {args.profile}" if args.profile else ""))
         return
     targets = ids if args.action in ("status", "logs") else ids[:1]
     if args.action == "logs":
@@ -42,7 +43,8 @@ def main():
         commands = ["set -eu", "cloud-init status --wait", "tail -n 15 /var/log/cloud-init-output.log",
                     "systemctl --no-pager status graphword-*",
                     "systemctl is-active --quiet graphword-worker",
-                    "if test -f /etc/systemd/system/graphword-api.service; then systemctl is-active --quiet graphword-api graphword-reconcile; fi"]
+                    "if test -f /etc/systemd/system/graphword-api.service; then systemctl is-active --quiet graphword-api graphword-reconcile; "
+                    "for attempt in $(seq 1 30); do if curl --max-time 2 --fail --silent http://127.0.0.1:8000/health; then exit 0; fi; sleep 2; done; exit 1; fi"]
     else:
         commands = ["set -eu", "cd /opt/graphword", "set -a", ". ./service.env", "set +a",
                     ".venv/bin/python scripts/smoke_aws.py"]

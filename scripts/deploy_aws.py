@@ -96,7 +96,9 @@ def build_release(config):
             info.external_attr = 0o100644 << 16
             archive.writestr(info, content)
 
-        for pattern in ("graphword/*.py", "scripts/bootstrap_aws.py", "scripts/smoke_aws.py", "pyproject.toml"):
+        for pattern in ("graphword/*.py", "scripts/bootstrap_aws.py", "scripts/smoke_aws.py",
+                        "scripts/benchmark_remote.py", "data/curated/words*.txt",
+                        "data/curated/licenses/*", "data/curated/manifest.json", "pyproject.toml"):
             for path in sorted(ROOT.glob(pattern)):
                 add_file(path.relative_to(ROOT).as_posix(), path.read_bytes())
         add_file("deployment.json", json.dumps(config, sort_keys=True))
@@ -105,7 +107,7 @@ def build_release(config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", default="default")
+    parser.add_argument("--profile", default=None)
     parser.add_argument("--region", default="us-east-1", choices=["us-east-1"])
     parser.add_argument("--instance-profile", default="LabInstanceProfile")
     args = parser.parse_args()

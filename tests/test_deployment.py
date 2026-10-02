@@ -17,7 +17,7 @@ class DeploymentTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             for item in archive.infolist():
                 self.assertEqual(0o644, (item.external_attr >> 16) & 0o777)
-                self.assertTrue(item.filename.startswith(("graphword/", "scripts/")) or
+                self.assertTrue(item.filename.startswith(("graphword/", "scripts/", "data/curated/")) or
                                 item.filename in ("pyproject.toml", "deployment.json"))
                 self.assertNotIn(".env", item.filename)
                 self.assertNotIn(".aws", item.filename)
