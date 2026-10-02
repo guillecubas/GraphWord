@@ -45,3 +45,12 @@ ofrece persistencia y coordinación en una máquina, no ejecución distribuida.
 
 Un trabajo pasa por `PENDING`, `RUNNING` y `SUCCEEDED` o `FAILED`. Los detalles del
 lease, reintentos y garantías se documentan en `docs/jobs.md`.
+
+## Reintentos del cliente
+
+Ambos POST de trabajos aceptan `Idempotency-Key` opcional (1–128 caracteres ASCII
+visibles, sin espacios). Misma clave y petición normalizada devuelven el mismo
+trabajo; misma clave con otro contenido devuelve 409 `idempotency_conflict`.
+Sin clave se crea un trabajo nuevo. No se aplica al POST síncrono de grafos.
+El replay devuelve 202 y el estado actual, que puede ser terminal; no siempre
+`PENDING`. Véanse persistencia, ámbito y límites en [hardening.md](hardening.md).

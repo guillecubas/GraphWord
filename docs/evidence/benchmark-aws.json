@@ -1,0 +1,671 @@
+{
+  "complete": true,
+  "region": "us-east-1",
+  "instance_type": "t3.micro",
+  "repeats": 3,
+  "partitions": 8,
+  "reconcile_interval_seconds": 0.5,
+  "includes": [
+    "HTTP submission",
+    "S3",
+    "DynamoDB",
+    "SQS",
+    "workers",
+    "reduction",
+    "status polling"
+  ],
+  "excludes": [
+    "SSM dispatch",
+    "reference graph",
+    "result download/equality",
+    "service start/stop"
+  ],
+  "records": [
+    {
+      "length": 3,
+      "configured_workers": 1,
+      "seconds": 1.9656167670000286,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "e352a7ba-8010-4983-84a4-d95b404af310",
+      "graph_id": "86e2a5e3-0ecb-4181-8669-03e5f76d5545",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 3,
+      "configured_workers": 2,
+      "seconds": 1.4520529679999754,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "656696b7-5256-445e-bc66-9886a36fb606",
+      "graph_id": "596dd714-5b42-4faa-8d8a-8dd52192fb97",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 3,
+      "configured_workers": 2,
+      "seconds": 1.401037515999974,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "febcb597-8097-44e8-bc13-b4ebe934c44d",
+      "graph_id": "cbb6fbb8-cbf1-4816-8362-adb4d43f94ab",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 3,
+      "configured_workers": 1,
+      "seconds": 1.918452570999989,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "c4b02a71-046a-4491-ba30-24f692e85e49",
+      "graph_id": "bdb07649-ef26-4012-852d-07472d077059",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 3,
+      "configured_workers": 1,
+      "seconds": 1.9777664739999636,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "5173bfa7-b583-4454-b5e1-a84c6274b5f4",
+      "graph_id": "0a24196f-7d59-4b10-8cf7-4434b0f37028",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 3,
+      "configured_workers": 2,
+      "seconds": 1.4171400630000335,
+      "input_sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906",
+      "job_id": "be9619ed-6196-439e-af0f-9fbe1f068e1f",
+      "graph_id": "61dd08f8-3034-4c48-bcf6-923a2cc98c2e",
+      "nodes": 628,
+      "edges": 3815,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 4,
+      "configured_workers": 1,
+      "seconds": 1.9826790359999222,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "d4670e55-7ef0-48c2-bcbf-8fc27656a897",
+      "graph_id": "7da7f8ec-af50-4e7b-9d36-1f01500fe6be",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 4,
+      "configured_workers": 2,
+      "seconds": 1.423558058000026,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "b6cf003c-980a-4abf-9d36-0729c7dd7bc7",
+      "graph_id": "c08cabe5-ad02-4caf-9a5e-016428e2141d",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 4,
+      "configured_workers": 2,
+      "seconds": 1.5134449500000073,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "cf482ec7-1456-46ca-9fa6-b22f79bcf4c3",
+      "graph_id": "30778243-3f29-4735-bda0-838f232023ea",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 4,
+      "configured_workers": 1,
+      "seconds": 2.077178119999985,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "8c5adee3-fc54-4875-a4ae-1b360a01d7f2",
+      "graph_id": "b56357a7-938d-442f-b860-10f1a9ddb2b5",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 4,
+      "configured_workers": 1,
+      "seconds": 1.9870897060000061,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "363d5701-639d-4d1c-8963-c659ba0f02af",
+      "graph_id": "0fc75bb3-82a3-4449-a45c-aadc0e802bef",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 4,
+      "configured_workers": 2,
+      "seconds": 1.4056080230000134,
+      "input_sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f",
+      "job_id": "25ea14c2-797b-4bb6-826d-4b91eec4b485",
+      "graph_id": "aa30fdbc-0690-48ce-8d60-852ddbd596ed",
+      "nodes": 1889,
+      "edges": 7153,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 5,
+      "configured_workers": 1,
+      "seconds": 2.5993356009998934,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "f3ef9451-757a-4383-8462-10f5c7ed794a",
+      "graph_id": "130b2aa8-6554-4fac-aec8-b346b25e870e",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 5,
+      "configured_workers": 2,
+      "seconds": 1.445762648999903,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "eab1221a-c4df-427b-9219-83db043fd3d0",
+      "graph_id": "91420e7e-b5e3-4d60-82da-18c61e9c8e67",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 5,
+      "configured_workers": 2,
+      "seconds": 1.5541007409999565,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "a04cbd16-762f-4257-82ce-42ec017bc4c7",
+      "graph_id": "55fd3dc5-75a4-4bb6-ba85-1ce502fa8bc1",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 5,
+      "configured_workers": 1,
+      "seconds": 2.0516480729999103,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "de19df61-766d-4a8f-9654-3d269fd984f0",
+      "graph_id": "32bf592f-9de1-4eaf-af8a-a0d5468309ba",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 5,
+      "configured_workers": 1,
+      "seconds": 2.157825928999955,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "1f79a5ab-ebb0-480d-aa98-988c2902b149",
+      "graph_id": "10a8d7cd-d47a-4d1f-82cc-8f4ea304b5db",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 5,
+      "configured_workers": 2,
+      "seconds": 1.4811044599999832,
+      "input_sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92",
+      "job_id": "cc609cb7-8531-49f1-a0ab-46825a011f80",
+      "graph_id": "d3fb0b61-fa03-4289-a87a-163793921406",
+      "nodes": 2677,
+      "edges": 3171,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 6,
+      "configured_workers": 1,
+      "seconds": 2.704262533000019,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "7126f416-f045-4d16-ae75-b3346107cf54",
+      "graph_id": "a708d60c-a1fd-465e-89e2-66bee8c93d53",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 6,
+      "configured_workers": 2,
+      "seconds": 1.4975081549999913,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "4254f2cd-d5b6-4521-a4a1-6552552f3f6f",
+      "graph_id": "d866bd50-caf0-415c-adc6-cd2ce7423cc7",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 0
+    },
+    {
+      "length": 6,
+      "configured_workers": 2,
+      "seconds": 2.0497058050000305,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "7f829dab-aa2c-4f8b-a2f9-d57931f84842",
+      "graph_id": "5f369085-803c-46c7-875f-5bc1f4caff77",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 6,
+      "configured_workers": 1,
+      "seconds": 2.0778841320000083,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "dc1c4dd0-4479-4b55-8138-fe40f3bff1ca",
+      "graph_id": "242aae86-d1cf-4d7c-8eed-fda5076624a0",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 1
+    },
+    {
+      "length": 6,
+      "configured_workers": 1,
+      "seconds": 2.0838298810000424,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "3656b143-7c1b-4b09-b5e5-7886a7222e2f",
+      "graph_id": "cb6b33ec-ed89-4a37-9746-91faf82ea469",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    },
+    {
+      "length": 6,
+      "configured_workers": 2,
+      "seconds": 1.461836156000004,
+      "input_sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986",
+      "job_id": "6557cf2f-0e52-4e07-8f51-5e1198039234",
+      "graph_id": "a8f54774-c7d0-467f-8b8c-7dc45d9c90e6",
+      "nodes": 3676,
+      "edges": 2332,
+      "observed_workers": [
+        "ip-172-31-89-69.ec2.internal",
+        "ip-172-31-92-43.ec2.internal"
+      ],
+      "attempts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "oracle_equal": true,
+      "repeat": 2
+    }
+  ],
+  "medians": [
+    {
+      "length": 3,
+      "median_seconds": {
+        "1": 1.9656167670000286,
+        "2": 1.4171400630000335
+      },
+      "speedup_1_over_2": 1.387030695356174
+    },
+    {
+      "length": 4,
+      "median_seconds": {
+        "1": 1.9870897060000061,
+        "2": 1.423558058000026
+      },
+      "speedup_1_over_2": 1.3958613734319292
+    },
+    {
+      "length": 5,
+      "median_seconds": {
+        "1": 2.157825928999955,
+        "2": 1.4811044599999832
+      },
+      "speedup_1_over_2": 1.4569032686593757
+    },
+    {
+      "length": 6,
+      "median_seconds": {
+        "1": 2.0838298810000424,
+        "2": 1.4975081549999913
+      },
+      "speedup_1_over_2": 1.3915315746644827
+    }
+  ]
+}

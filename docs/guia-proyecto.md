@@ -4,8 +4,8 @@ Guía para entender, ejecutar y defender el proyecto. Fecha: 2 de octubre de 202
 Los resultados comprobados se recogen en [el informe AWS](aws-validation.md).
 
 La integración se ha demostrado en AWS con dos workers de máquinas distintas:
-ocho particiones producen el mismo grafo que el cálculo local. Pasan 58 pruebas
-automáticas y la CI de Python 3.11 y 3.12. Esta guía explica las decisiones; los
+ocho particiones producen el mismo grafo que el cálculo local. La suite automática
+se ejecuta en Python 3.11 y 3.12 mediante CI. Esta guía explica las decisiones; los
 comandos para repetir la demostración están en [aws-operations.md](aws-operations.md).
 
 ## 1. Qué estamos construyendo
@@ -43,9 +43,12 @@ se conectan palabras de longitudes diferentes.
 
 **Por qué:** unas reglas explícitas hacen los resultados repetibles. El filtro no
 sabe si una palabra existe en un diccionario: `zzz` sirve como ejemplo de aislado.
-Los ficheros heredados de `data/` tienen procedencia/licencia pendiente de documentar;
-no se presentan como un corpus autorizado. La demostración nueva usa una pequeña
-lista escrita expresamente como ejemplo, no descarga diccionarios externos.
+Para los experimentos reales usamos `data/curated/`: intersección de SCOWL/Hunspell
+y CMUdict. Exigimos que la palabra aparezca en la fuente léxica y tenga una
+pronunciación registrada. Hay 16491 palabras repartidas entre 3 y 8 letras.
+Conservamos revisiones, huellas y licencias. Este criterio no demuestra un
+significado lingüístico perfecto. [Procedimiento y límites](../data/curated/README.md).
+Las listas heredadas fuera de `curated/` no se atribuyen a estas fuentes.
 
 ## 4. Construir conexiones y repartirlas
 
@@ -194,12 +197,14 @@ padre también falla en la siguiente reconciliación. No se cancelan automática
 las otras particiones. Los fallos de aplicación se consultan en DynamoDB/API;
 la DLQ es para fallos reiterados de transporte, no una lista de todos los `FAILED`.
 
-La reserva de los workers remotos es de 300 segundos, sin renovación automática.
-Un trabajo que tarda más puede agotar intentos. Para grandes grafos habrá que
-renovar leases y estudiar memoria. Las pruebas pequeñas no demuestran esa escala.
+La reserva remota es de 300 segundos y ahora se renueva durante el cálculo.
+Si la renovación falla, el worker no confirma éxito y la caducidad permite
+recuperarlo. Esto no elimina los límites de memoria ni demuestra escala ilimitada.
 El reconciliador recorre la tabla completa: para muchos trabajos necesitaría
-índices o una bandeja de salida especializada. Tampoco hay idempotencia HTTP:
-repetir una petición de creación crea otro trabajo distinto.
+índices o una bandeja de salida especializada. Los POST de trabajos admiten
+`Idempotency-Key`: reenviar la misma operación devuelve el mismo trabajo; cambiar
+el contenido con esa clave devuelve 409. Sin clave se crea otro trabajo.
+[Explicación y ejemplos de ambas mejoras](hardening.md).
 
 ## 12. Por qué dos EC2 y no ECS en esta entrega
 
@@ -227,9 +232,12 @@ duplicados, reintentos, caducidad, fallo de cola y confirmación tardía.
 compara la adyacencia completa con el motor local. Véase el informe de resultados.
 
 GitHub Actions ejecuta pruebas en Python 3.11 y 3.12 en cada push. Usa Moto y no
-necesita claves AWS. El despliegue es un script manual reproducible: no hay despliegue
-continuo automático desde GitHub con credenciales del laboratorio. Distinguimos
-CI automática de despliegue manual. Los artefactos en S3 se identifican por SHA-256.
+necesita claves AWS. El despliegue manual es reproducible y está probado. Hay un
+job de CD preparado tras la CI, con OIDC y parada de las máquinas tras verificar.
+Está desactivado: Academy no permite crear su rol de acceso. Hace falta autorización
+del administrador; no se ha validado ese flujo completo desde GitHub.
+[Qué falta y cómo habilitarlo](continuous-deployment.md).
+Los artefactos en S3 se identifican por SHA-256.
 
 ## 14. Perspectiva de arquitectura empresarial
 
@@ -240,18 +248,31 @@ S3 conserva objetos, DynamoDB coordina y SQS comunica trabajo.
 
 La transición seguida fue: motor comprobable → API → persistencia local →
 particiones independientes → servicios compartidos AWS → despliegue y verificación.
-Cada transición elimina una limitación de la etapa anterior. Esta vista explicativa
-no sustituye un modelo ArchiMate formal ni una entrega completa de TOGAF si se exigen.
+Cada transición elimina una limitación de la etapa anterior. El
+[documento de arquitectura empresarial](enterprise-architecture.md) desarrolla
+interesados, decisiones, catálogos, relaciones, capas, ADM adaptado, riesgos y
+arquitectura objetivo. La [matriz del enunciado](rubric-mapping.md) enlaza requisitos
+con evidencias y límites. No se presenta como certificación formal de TOGAF/ArchiMate.
 
-## 15. Cómo explicarlo en un minuto
+## 15. Medir en vez de suponer
+
+Construimos el mismo grafo con ocho particiones usando uno y dos trabajadores.
+Repetimos y alternamos el orden. Comparamos tiempos, pero también comprobamos
+que todas las conexiones coincidan: acelerar un resultado incorrecto no sirve.
+En local se mide el arranque de procesos, cálculo y combinación. En AWS se miden
+además los servicios y la coordinación. No son cifras directamente intercambiables.
+El [informe de rendimiento](performance.md) conserva metodología, resultados y límites.
+
+## 16. Cómo explicarlo en un minuto
 
 “GraphWord conecta palabras que cambian una letra. Uso patrones para repartir la
 construcción sin perder conexiones. La API registra trabajos; SQS los reparte;
 dos workers calculan particiones; S3 guarda archivos y DynamoDB decide qué resultados
 están confirmados. Un reconciliador recupera trabajos tras fallos. Un reductor une
 las particiones y la API permite consultar el grafo. He separado pruebas simuladas
-de la demostración real en AWS. Repartir la construcción no significa distribuir
-también las consultas ni haber demostrado una mejora de velocidad.”
+de la demostración real en AWS y he medido uno frente a dos trabajadores.
+Repartir la construcción no significa distribuir también las consultas,
+tener autoescalado ni garantizar una mejora para cualquier tamaño.”
 
 ## Lecturas oficiales utilizadas
 

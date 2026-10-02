@@ -6,6 +6,12 @@ reproducible para AWS Academy. Empieza por la [guía explicada paso a paso](docs
 y consulta el [informe de validación AWS](docs/aws-validation.md) para distinguir
 código disponible, pruebas simuladas y comprobaciones reales.
 
+Entrega ampliada: [matriz del enunciado](docs/rubric-mapping.md),
+[arquitectura empresarial](docs/enterprise-architecture.md),
+[diccionarios y licencias](data/curated/README.md),
+[rendimiento](docs/performance.md), [validación final](docs/final-validation.md)
+y [activación pendiente de CD](docs/continuous-deployment.md).
+
 ## Ejecutar
 
 Python 3.11 o superior. Crear un entorno e instalar el proyecto:
@@ -78,7 +84,8 @@ SQLite y workers ejecutables en procesos distintos. Las construcciones enviadas 
 `/v1/jobs/partitioned-builds` reparten un mismo grafo en trabajos de partición y un
 reductor. Véase [la demostración reproducible](docs/partitioned-builds.md).
 También existen adaptadores AWS y despliegue con dos nodos EC2. Las medidas
-comparativas de rendimiento y el endurecimiento para producción siguen pendientes.
+comparativas de rendimiento se documentan con sus evidencias. Hay idempotencia
+HTTP y renovación de leases; el endurecimiento completo de producción no está incluido.
 
 ## API local
 

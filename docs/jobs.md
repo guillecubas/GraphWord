@@ -1,7 +1,7 @@
 # Protocolo de trabajos
 
-Estado: máquina de estados, worker y adaptadores SQLite compartidos entre procesos
-locales; no desplegados en AWS.
+Estado: implementado en memoria, SQLite y AWS. Los adaptadores AWS se han
+desplegado; véase [la validación](aws-validation.md) y [las mejoras](hardening.md).
 
 ```mermaid
 stateDiagram-v2
@@ -26,8 +26,8 @@ stateDiagram-v2
 
 El worker escribe primero el grafo y después confirma el trabajo. Si pierde el lease
 entre ambas operaciones puede quedar un objeto huérfano, pero el intento antiguo no
-puede publicarlo como resultado válido. En AWS los objetos se aislarán por trabajo e
-intento y una política de ciclo de vida eliminará huérfanos.
+puede publicarlo como resultado válido. En AWS cada guardado usa un UUID nuevo.
+No existe todavía recolección automática de objetos huérfanos.
 
 ## Contrato HTTP local
 
@@ -42,9 +42,11 @@ permite que la API y uno o más workers locales abran conexiones independientes 
 mismo fichero. `BEGIN IMMEDIATE` serializa la selección y actualización de un
 trabajo, impidiendo una doble reclamación.
 
-## Paso pendiente para AWS
+## Implementación AWS
 
 En SQLite, catálogo y cola son filas de una misma base y crear `PENDING` es una sola
-transacción. Esto no resuelve la separación DynamoDB/SQS. Los adaptadores AWS deben
-usar escritura condicional para reclamar y una bandeja de salida o reconciliador
-persistente para recuperar el fallo entre registrar el trabajo y enviarlo a SQS.
+transacción. Esto no resuelve la separación DynamoDB/SQS. Los adaptadores AWS usan
+escritura condicional por revisión para reclamar y un reconciliador periódico
+para recuperar el fallo entre registrar el trabajo y enviarlo a SQS.
+El heartbeat renueva el lease y la visibilidad mientras el worker calcula.
+Los POST asíncronos admiten `Idempotency-Key`; detalles en [hardening.md](hardening.md).

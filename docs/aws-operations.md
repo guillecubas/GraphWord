@@ -34,7 +34,9 @@ El paquete incluye únicamente fuentes permitidas, configuración no secreta y
 scripts. Excluye `.aws`, `.env`, `.venv` y `.git`. Su SHA-256 identifica la versión.
 Para nuevas versiones se reemplazan los nodos; `cloud-init` no reinstala una versión
 nueva por el mero hecho de reiniciar una máquina. Los datos permanecen en S3/DynamoDB.
-Es un despliegue manual reproducible, no CD automático ni actualización sin interrupción.
+Este comando realiza un despliegue manual reproducible, no una actualización sin
+interrupción. El [job CD](continuous-deployment.md) reutiliza los scripts, pero
+permanece desactivado hasta contar con autorización OIDC.
 
 El resultado queda en `var/aws-deployment.json`, excluido de Git. Contiene nombres
 de recursos e IDs, no claves. No lo edites a mano: las operaciones verifican la cuenta
@@ -58,7 +60,8 @@ Debes ver `cloud-init: done` y servicios `active (running)`.
 
 La prueba ejecuta llamadas HTTP dentro del nodo API, envía siete palabras y ocho
 particiones, espera el reductor, compara TODAS las aristas con el motor local y
-consulta un camino mínimo. Conserva resultado en `var/aws-smoke.json` y envía la
+consulta un camino mínimo. También comprueba replay de `Idempotency-Key` y
+conflicto 409. Conserva resultado en `var/aws-smoke.json` y envía la
 salida del comando remoto al grupo CloudWatch de la aplicación.
 
 `oracle_equal=true` comprueba corrección. `two_workers_observed=true` comprueba que
@@ -165,6 +168,10 @@ que pueda afectar a datos de otro proyecto.
 | Trabajo `FAILED` | Leer `error`, intentos y logs; no reenviar sin entender la causa |
 | API no responde al túnel | Nodo activo, servicio API, plugin SSM y puerto local libre |
 
-Estado remoto y evidencia: [aws-validation.md](aws-validation.md).
+Estado remoto y evidencia: [final-validation.md](final-validation.md).
+
+Comparación de uno y dos workers: [procedimiento y resultados](performance.md).
+Los scripts aceptan `--profile default`; sin esa opción utilizan la cadena normal
+de credenciales AWS, necesaria también para el futuro job OIDC.
 
 Para revisar logs de ambos nodos: `python scripts/aws_operations.py logs`.

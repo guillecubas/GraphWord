@@ -1,5 +1,10 @@
 # Informe de validación AWS
 
+> Informe histórico de la primera demo (58 pruebas). Las mejoras posteriores,
+> nuevo despliegue, idempotencia y rendimiento están en
+> [validación final](final-validation.md). Los pendientes al final describen esa
+> primera versión, no el estado actual.
+
 Fecha de ejecución: 2 de octubre de 2026. Cuenta: AWS Academy Learner Lab.
 Región: `us-east-1`. Las credenciales no forman parte del código ni de este informe.
 
