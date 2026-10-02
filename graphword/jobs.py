@@ -9,6 +9,7 @@ from enum import StrEnum
 from threading import RLock
 from typing import Any, Protocol
 from uuid import UUID, uuid4
+from graphword.submissions import submission_identity, require_same_request
 
 
 class JobKind(StrEnum):
@@ -62,6 +63,7 @@ class JobRepository(Protocol):
         kind: JobKind,
         payload: Mapping[str, Any],
         max_attempts: int = 3,
+        *, idempotency_key: str | None = None,
     ) -> Job: ...
 
     def get(self, job_id: UUID) -> Job: ...
@@ -72,9 +74,11 @@ class JobRepository(Protocol):
 
     def fail(self, claim: ClaimedJob, error: str, retryable: bool = True) -> Job: ...
 
+    def renew(self, claim: ClaimedJob, lease_seconds: int) -> None: ...
+
 
 class PartitionedBuildRepository(Protocol):
-    def create_partitioned_build(self, words: list[str], partitions: int) -> Job: ...
+    def create_partitioned_build(self, words: list[str], partitions: int, *, idempotency_key: str | None = None) -> Job: ...
 
 
 @dataclass
@@ -92,6 +96,7 @@ class _JobRecord:
     worker_id: str | None = None
     attempt_token: UUID | None = None
     lease_expires_at: datetime | None = None
+    request_hash: str | None = None
 
 
 def utc_now() -> datetime:
@@ -120,11 +125,13 @@ class InMemoryJobRepository:
         kind: JobKind,
         payload: Mapping[str, Any],
         max_attempts: int = 3,
+        *, idempotency_key: str | None = None,
     ) -> Job:
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
         now = self._clock()
-        job_id = self._id_factory()
+        stable_id, request_hash = submission_identity(kind, payload, max_attempts, idempotency_key)
+        job_id = stable_id or self._id_factory()
         record = _JobRecord(
             job_id=job_id,
             kind=kind,
@@ -136,9 +143,14 @@ class InMemoryJobRepository:
             error=None,
             created_at=now,
             updated_at=now,
+            request_hash=request_hash,
         )
         with self._lock:
             if job_id in self._records:
+                if stable_id:
+                    existing = self._records[job_id]
+                    require_same_request(existing.request_hash, request_hash)
+                    return self._snapshot(existing)
                 raise ValueError("job id already exists")
             self._records[job_id] = record
             self._pending.append(job_id)
@@ -182,6 +194,14 @@ class InMemoryJobRepository:
                     lease_expires_at=record.lease_expires_at,
                 )
             return None
+
+    def renew(self, claim: ClaimedJob, lease_seconds: int) -> None:
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds must be positive")
+        with self._lock:
+            record = self._active_record(claim)
+            record.lease_expires_at = self._clock() + timedelta(seconds=lease_seconds)
+            record.updated_at = self._clock()
 
     def complete(self, claim: ClaimedJob, result: Mapping[str, Any]) -> Job:
         with self._lock:

@@ -20,6 +20,7 @@ from graphword.jobs import (
     utc_now,
 )
 from graphword.storage import GraphNotFoundError
+from graphword.submissions import submission_identity, require_same_request
 
 
 SCHEMA = """
@@ -52,6 +53,11 @@ CREATE TABLE IF NOT EXISTS job_dependencies (
     parent_id TEXT NOT NULL REFERENCES jobs(job_id),
     child_id TEXT NOT NULL REFERENCES jobs(job_id),
     PRIMARY KEY(parent_id, child_id)
+);
+CREATE TABLE IF NOT EXISTS submission_keys (
+    submission_id TEXT PRIMARY KEY,
+    request_hash TEXT NOT NULL,
+    job_id TEXT NOT NULL REFERENCES jobs(job_id)
 );
 """
 
@@ -154,14 +160,16 @@ class SQLiteJobRepository(_SQLiteAdapter):
         self._clock = clock
         super().__init__(database)
 
-    def create_partitioned_build(self, words: list[str], partitions: int) -> Job:
+    def create_partitioned_build(self, words: list[str], partitions: int, *, idempotency_key=None) -> Job:
         """Atomically register all partitions and their waiting reducer."""
         if not 1 <= partitions <= 64:
             raise ValueError("partitions must be between 1 and 64")
         clean = normalize_words(words)
         if not clean:
             raise ValueError("no valid words supplied")
-        parent_id = uuid4()
+        stable_id, request_hash = submission_identity(JobKind.REDUCE_GRAPH,
+            {"words": clean, "partitions": partitions}, 3, idempotency_key)
+        parent_id = stable_id or uuid4()
         child_ids = [uuid4() for _ in range(partitions)]
         now = _timestamp(self._clock())
         records = [(parent_id, JobKind.REDUCE_GRAPH, {
@@ -172,6 +180,9 @@ class SQLiteJobRepository(_SQLiteAdapter):
         }) for index, child_id in enumerate(child_ids))
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            existing = self._existing_submission(connection, stable_id, request_hash)
+            if existing:
+                return existing
             for job_id, kind, payload in records:
                 connection.execute(
                     """INSERT INTO jobs(job_id, kind, status, payload_json,
@@ -183,6 +194,7 @@ class SQLiteJobRepository(_SQLiteAdapter):
                 "INSERT INTO job_dependencies(parent_id, child_id) VALUES (?, ?)",
                 [(str(parent_id), str(child_id)) for child_id in child_ids],
             )
+            self._remember_submission(connection, stable_id, request_hash, parent_id)
         return self.get(parent_id)
 
     def create(
@@ -190,13 +202,19 @@ class SQLiteJobRepository(_SQLiteAdapter):
         kind: JobKind,
         payload: Mapping[str, Any],
         max_attempts: int = 3,
+        *, idempotency_key=None,
     ) -> Job:
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
-        job_id = self._id_factory()
+        stable_id, request_hash = submission_identity(kind, payload, max_attempts, idempotency_key)
+        job_id = stable_id or self._id_factory()
         now = _timestamp(self._clock())
         try:
             with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = self._existing_submission(connection, stable_id, request_hash)
+                if existing:
+                    return existing
                 connection.execute(
                     """
                     INSERT INTO jobs(
@@ -207,9 +225,25 @@ class SQLiteJobRepository(_SQLiteAdapter):
                     (str(job_id), kind.value, JobStatus.PENDING.value,
                      _json(dict(payload)), max_attempts, now, now),
                 )
+                self._remember_submission(connection, stable_id, request_hash, job_id)
         except sqlite3.IntegrityError as error:
             raise ValueError("job id already exists") from error
         return self.get(job_id)
+
+    def _existing_submission(self, connection, stable_id, request_hash):
+        if stable_id is None:
+            return None
+        row = connection.execute("SELECT * FROM submission_keys WHERE submission_id = ?", (str(stable_id),)).fetchone()
+        if row is None:
+            return None
+        require_same_request(row["request_hash"], request_hash)
+        return self._snapshot(connection.execute("SELECT * FROM jobs WHERE job_id = ?", (row["job_id"],)).fetchone())
+
+    @staticmethod
+    def _remember_submission(connection, stable_id, request_hash, job_id):
+        if stable_id:
+            connection.execute("INSERT INTO submission_keys VALUES (?, ?, ?)",
+                               (str(stable_id), request_hash, str(job_id)))
 
     def get(self, job_id: UUID) -> Job:
         with self._connection() as connection:
@@ -280,6 +314,16 @@ class SQLiteJobRepository(_SQLiteAdapter):
                 attempt_token=token,
                 lease_expires_at=lease_expires_at,
             )
+
+    def renew(self, claim: ClaimedJob, lease_seconds: int) -> None:
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds must be positive")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
+            self._require_active(connection, claim, now)
+            connection.execute("UPDATE jobs SET lease_expires_at = ?, updated_at = ? WHERE job_id = ?",
+                (_timestamp(now + timedelta(seconds=lease_seconds)), _timestamp(now), str(claim.job_id)))
 
     def complete(self, claim: ClaimedJob, result: Mapping[str, Any]) -> Job:
         with self._connection() as connection:

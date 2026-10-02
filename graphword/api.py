@@ -5,7 +5,8 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status, Header
+from graphword.submissions import IdempotencyConflict
 from pydantic import BaseModel, Field
 
 from graphword.graph import (
@@ -176,11 +177,14 @@ def create_app(
         "/v1/jobs/partitioned-builds", response_model=JobResponse,
         status_code=status.HTTP_202_ACCEPTED, tags=["jobs"],
     )
-    def create_partitioned_build(request: CreateGraphRequest, response: Response) -> JobResponse:
+    def create_partitioned_build(request: CreateGraphRequest, response: Response,
+            idempotency_key: Annotated[str | None, Header(min_length=1, max_length=128, pattern=r"^[!-~]+$")] = None) -> JobResponse:
         if partitioned_builds is None:
             raise HTTPException(503, detail={"code": "partitioned_builds_unavailable"})
         try:
-            job = partitioned_builds.create_partitioned_build(request.words, request.partitions)
+            job = partitioned_builds.create_partitioned_build(request.words, request.partitions, idempotency_key=idempotency_key)
+        except IdempotencyConflict as error:
+            raise HTTPException(409, detail={"code": "idempotency_conflict", "message": str(error)}) from error
         except ValueError as error:
             raise HTTPException(422, detail={
                 "code": "invalid_build", "message": str(error),
@@ -198,12 +202,16 @@ def create_app(
         request: CreateGraphRequest,
         response: Response,
         jobs: JobRepositoryDependency,
+        idempotency_key: Annotated[str | None, Header(min_length=1, max_length=128, pattern=r"^[!-~]+$")] = None,
     ) -> JobResponse:
         try:
             job = jobs.create(
                 JobKind.GRAPH_BUILD,
                 {"words": request.words, "partitions": request.partitions},
+                idempotency_key=idempotency_key,
             )
+        except IdempotencyConflict as error:
+            raise HTTPException(409, detail={"code": "idempotency_conflict", "message": str(error)}) from error
         except ValueError as error:
             raise HTTPException(422, detail={"code": "invalid_build", "message": str(error)}) from error
         response.headers["Location"] = f"/v1/jobs/{job.job_id}"

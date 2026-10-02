@@ -50,6 +50,31 @@ class AWSStorageTests(unittest.TestCase):
         with self.assertRaises(GraphNotFoundError):
             self.graphs.get(uuid4())
 
+    def test_aws_renewal_extends_claim_and_rejects_stale(self):
+        self.jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
+        self.jobs.reconcile()
+        claim = self.jobs.claim_next("one", 10)
+        self.now += timedelta(seconds=6)
+        self.jobs.renew(claim, 10)
+        self.now += timedelta(seconds=6)
+        self.jobs.reconcile()
+        self.assertEqual(JobStatus.RUNNING, self.jobs.get(claim.job_id).status)
+        self.jobs.complete(claim, {"graph_id": "confirmed"})
+        with self.assertRaises(InvalidJobTransition):
+            self.jobs.renew(claim, 10)
+
+    def test_aws_idempotency_single_and_partitioned(self):
+        from graphword.submissions import IdempotencyConflict
+        job = self.jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1}, idempotency_key="one")
+        self.assertEqual(job.job_id, self.jobs.create(JobKind.GRAPH_BUILD,
+            {"words": ["cat"], "partitions": 1}, idempotency_key="one").job_id)
+        parent = self.jobs.create_partitioned_build(["cat", "bat"], 2, idempotency_key="two")
+        replay = self.jobs.create_partitioned_build(["bat", "cat"], 2, idempotency_key="two")
+        self.assertEqual(parent.job_id, replay.job_id)
+        self.assertEqual(4, self.table.scan()["Count"])
+        with self.assertRaises(IdempotencyConflict):
+            self.jobs.create_partitioned_build(["dog"], 2, idempotency_key="two")
+
     def test_partitioned_build_matches_oracle(self):
         words = ["cat", "bat", "bad", "dad", "zzz"]
         parent = self.jobs.create_partitioned_build(words, 3)

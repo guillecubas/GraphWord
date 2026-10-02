@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import json
 import logging
+from threading import RLock
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
@@ -21,6 +22,7 @@ from graphword.jobs import (
     JobStatus, utc_now,
 )
 from graphword.storage import GraphNotFoundError
+from graphword.submissions import submission_identity, require_same_request
 
 LOG = logging.getLogger(__name__)
 
@@ -74,6 +76,12 @@ class AWSJobRepository:
         self.table, self.sqs, self.queue_url = table, sqs, queue_url
         self.objects, self.clock, self.wait_seconds = objects, clock, wait_seconds
         self.receipts = {}
+        self.table_lock = RLock()
+
+    def _table_call(self, method, **kwargs):
+        # boto3 resources are not thread-safe; serialize the heartbeat and reads.
+        with self.table_lock:
+            return getattr(self.table, method)(**kwargs)
 
     def _new(self, kind, payload, max_attempts=3, job_id=None, dependencies=None):
         if max_attempts < 1:
@@ -93,7 +101,7 @@ class AWSJobRepository:
                    datetime.fromisoformat(record["updated_at"]))
 
     def _read(self, job_id):
-        item = self.table.get_item(Key={"job_id": str(job_id)}, ConsistentRead=True).get("Item")
+        item = self._table_call("get_item", Key={"job_id": str(job_id)}, ConsistentRead=True).get("Item")
         if item is None:
             raise JobNotFoundError(str(job_id))
         return item
@@ -106,7 +114,7 @@ class AWSJobRepository:
         new["revision"] = old["revision"] + 1
         new["updated_at"] = self.clock().isoformat()
         try:
-            self.table.put_item(Item=new, ConditionExpression="revision = :r",
+            self._table_call("put_item", Item=new, ConditionExpression="revision = :r",
                                 ExpressionAttributeValues={":r": old["revision"]})
         except ClientError as error:
             if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
@@ -125,27 +133,63 @@ class AWSJobRepository:
             payload["words_key"] = key
         return payload
 
-    def create(self, kind, payload, max_attempts=3):
+    def _replay(self, stable_id, request_hash):
+        if stable_id is None:
+            return None
+        try:
+            record = self._read(stable_id)
+        except JobNotFoundError:
+            return None
+        require_same_request(record.get("request_hash"), request_hash)
+        return self._snapshot(record)
+
+    def create(self, kind, payload, max_attempts=3, *, idempotency_key=None):
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
-        record = self._new(kind, self._payload(payload), max_attempts)
-        self.table.put_item(Item=record, ConditionExpression="attribute_not_exists(job_id)")
+        stable_id, request_hash = submission_identity(kind, payload, max_attempts, idempotency_key)
+        existing = self._replay(stable_id, request_hash)
+        if existing:
+            return existing
+        record = self._new(kind, self._payload(payload), max_attempts, job_id=stable_id)
+        record["request_hash"] = request_hash
+        try:
+            self._table_call("put_item", Item=record, ConditionExpression="attribute_not_exists(job_id)")
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "ConditionalCheckFailedException" and stable_id:
+                existing = self._replay(stable_id, request_hash)
+                if existing:
+                    return existing
+            raise
         # Do not require SQS to be available at submission: reconciler will send.
         return self._snapshot(record)
 
-    def create_partitioned_build(self, words, partitions):
+    def create_partitioned_build(self, words, partitions, *, idempotency_key=None):
         if not 1 <= partitions <= 64:
             raise ValueError("partitions must be between 1 and 64")
+        stable_id, request_hash = submission_identity(JobKind.REDUCE_GRAPH,
+            {"words": words, "partitions": partitions}, 3, idempotency_key)
+        existing = self._replay(stable_id, request_hash)
+        if existing:
+            return existing
         payload = self._payload({"words": words})
         children = [self._new(JobKind.BUILD_PARTITION, dict(
             payload, partition=index, partitions=partitions)) for index in range(partitions)]
         ids = [child["job_id"] for child in children]
-        parent = self._new(JobKind.REDUCE_GRAPH, {"partition_jobs": ids}, dependencies=ids)
+        parent = self._new(JobKind.REDUCE_GRAPH, {"partition_jobs": ids}, dependencies=ids, job_id=stable_id)
+        parent["request_hash"] = request_hash
         # Resource client has boto3's DynamoDB native-type serializer attached.
-        self.table.meta.client.transact_write_items(TransactItems=[{
-            "Put": {"TableName": self.table.name, "Item": record,
-                    "ConditionExpression": "attribute_not_exists(job_id)"}
-        } for record in [parent, *children]])
+        try:
+            with self.table_lock:
+                self.table.meta.client.transact_write_items(TransactItems=[{
+                    "Put": {"TableName": self.table.name, "Item": record,
+                            "ConditionExpression": "attribute_not_exists(job_id)"}
+                } for record in [parent, *children]])
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "TransactionCanceledException" and stable_id:
+                existing = self._replay(stable_id, request_hash)
+                if existing:
+                    return existing
+            raise
         return self._snapshot(parent)
 
     def _ready(self, record):
@@ -157,7 +201,7 @@ class AWSJobRepository:
         request = {"ConsistentRead": True}
         sent = 0
         while True:
-            page = self.table.scan(**request)
+            page = self._table_call("scan", **request)
             for old in page["Items"]:
                 try:
                     record = old
@@ -229,6 +273,21 @@ class AWSJobRepository:
             return ClaimedJob(job_id, JobKind(record["kind"]), payload, worker_id,
                               int(record["attempts"]), token, expiry)
         return None
+
+    def renew(self, claim, lease_seconds):
+        if not 1 <= lease_seconds <= 43200:
+            raise ValueError("lease must be 1..43200 seconds")
+        old = self._read(claim.job_id)
+        now = self.clock()
+        if (old["status"] != "RUNNING" or old.get("token") != str(claim.attempt_token)
+                or old.get("worker") != claim.worker_id or old["lease"] <= int(now.timestamp())):
+            raise InvalidJobTransition("cannot renew a stale claim")
+        receipt = self.receipts.get(str(claim.attempt_token))
+        if not receipt:
+            raise InvalidJobTransition("missing receipt for active claim")
+        self.sqs.change_message_visibility(QueueUrl=self.queue_url, ReceiptHandle=receipt,
+                                           VisibilityTimeout=lease_seconds)
+        self._replace(old, dict(old, lease=int((now + timedelta(seconds=lease_seconds)).timestamp())))
 
     def _finish(self, claim, result=None, error=None, retryable=False):
         old = self._read(claim.job_id)

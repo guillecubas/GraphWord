@@ -1,0 +1,75 @@
+{
+  "sources": {
+    "scowl": {
+      "repository": "LibreOffice/dictionaries",
+      "revision": "32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4",
+      "files": {
+        "en/en_US.dic": {
+          "url": "https://raw.githubusercontent.com/LibreOffice/dictionaries/32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4/en/en_US.dic",
+          "sha256": "f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647"
+        },
+        "en/en_US.aff": {
+          "url": "https://raw.githubusercontent.com/LibreOffice/dictionaries/32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4/en/en_US.aff",
+          "sha256": "e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e"
+        },
+        "en/README_en_US.txt": {
+          "url": "https://raw.githubusercontent.com/LibreOffice/dictionaries/32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4/en/README_en_US.txt",
+          "sha256": "168b4c01cb841f766a72f310b065c04d09cff46376c37a81d799593ce751c371"
+        }
+      }
+    },
+    "cmu": {
+      "repository": "cmusphinx/cmudict",
+      "revision": "74790861f652b15e4ac49015a90074ad62a27690",
+      "files": {
+        "cmudict.dict": {
+          "url": "https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict",
+          "sha256": "81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22"
+        },
+        "cmudict.symbols": {
+          "url": "https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.symbols",
+          "sha256": "408ccaae803641c6d7b626b6299949320c2dbca96b2220fd3fb17887b023b027"
+        },
+        "LICENSE": {
+          "url": "https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/LICENSE",
+          "sha256": "bd4ce8e44170a5f9f481310ca85c51de3c4f851a65e679b40e603b143bd3542a"
+        }
+      }
+    }
+  },
+  "outputs": {
+    "scowl-base-words.txt": {
+      "words": 22070,
+      "sha256": "3c97a4955d0953d57ff2fec742fa8f380dde7e27085a3d052b85a7c579e85946"
+    },
+    "cmu-pronounced-words.txt": {
+      "words": 84373,
+      "sha256": "562b9368b74fcebc65b2806fe76920a24771f2c1f2a91dd8376433e1b966b2e6"
+    },
+    "words3.txt": {
+      "words": 628,
+      "sha256": "d0927f7bd0f08d009fe13a52ce1bf63446719286aa77ad1cb09372481fef7906"
+    },
+    "words4.txt": {
+      "words": 1889,
+      "sha256": "728230db85d0bb76ee3f9bff7fa8b922d602660242fdda2b5a52d5b055fca80f"
+    },
+    "words5.txt": {
+      "words": 2677,
+      "sha256": "107cdf7a7834c49dae18507463d01f399bc199c6af3235a6dcfd83210097bb92"
+    },
+    "words6.txt": {
+      "words": 3676,
+      "sha256": "91caa25ef7aa1769b73698f22e3c70f1bb29b28d5005672071ca0b5529930986"
+    },
+    "words7.txt": {
+      "words": 3898,
+      "sha256": "0083fc440e0c1e93748f201e7875bd2ab3a296697c9c9bd866cb7e38ca9b7c8f"
+    },
+    "words8.txt": {
+      "words": 3723,
+      "sha256": "1ea9c31f18077cb5d399251ec103bb341fffcd2caf3ee90ee5e87e0a67f2abe1"
+    }
+  },
+  "rules_version": 1
+}
