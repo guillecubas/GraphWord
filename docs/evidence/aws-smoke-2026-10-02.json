@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-02",
+  "region": "us-east-1",
+  "ssm_command_id": "52f888fc-0260-4991-be93-82e602ec532e",
+  "ssm_status": "Success",
+  "job_id": "c243e4cb-ceca-40ea-887f-d5dbfab78be6",
+  "job_status": "SUCCEEDED",
+  "graph_id": "1f0aac40-e03f-4259-a1db-aa4c899a209d",
+  "graph_summary": {"nodes": 7, "edges": 8, "components": 2, "isolated": ["zzz"], "max_degree": 4, "highest_degree_nodes": ["bat"]},
+  "shortest_path": ["cat", "bat", "bad", "dad"],
+  "worker_partitions": {
+    "ip-172-31-82-83.ec2.internal": [0, 1, 2, 3, 6],
+    "ip-172-31-94-41.ec2.internal": [4, 5, 7]
+  },
+  "oracle_equal": true,
+  "two_workers_observed": true,
+  "artifact_sha256": "82d92c56ae55d63916713d394d242b6198d5397a126f2c3cd14b631a77974641",
+  "note": "Condensed from var/aws-smoke.json; no benchmark or fault injection claimed."
+}

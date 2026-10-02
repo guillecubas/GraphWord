@@ -76,6 +76,10 @@ cada push. Los identificadores de las ejecuciones verificadas figuran en
 
 ## Siguientes etapas
 
+Nota histórica: la lista siguiente corresponde al hito SQLite. La integración AWS
+se documenta ahora en [guia-proyecto.md](guia-proyecto.md); consultar
+[aws-validation.md](aws-validation.md) para saber qué se ha verificado realmente.
+
 1. Reforzar renovación de leases, observabilidad de intentos e idempotencia de
    envíos antes de sustituir SQLite. El reparto local por particiones ya está probado.
 2. Añadir S3 y DynamoDB para que no exista un fichero SQLite compartido.

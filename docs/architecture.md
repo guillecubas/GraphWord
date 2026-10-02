@@ -1,6 +1,10 @@
 # Arquitectura objetivo — Python
 
-Estado: prototipo local multiproceso implementado; arquitectura AWS aún propuesta.
+Este documento conserva el diseño inicial como contexto histórico. Para la
+arquitectura implementada actual, las decisiones y los límites reales, consultar
+[la guía del proyecto](guia-proyecto.md) y [la operación AWS](aws-operations.md).
+Las menciones a AWS pendiente y ECS objetivo más abajo describen la etapa anterior,
+no el despliegue actual basado en EC2 con servicios separados.
 
 ## Decisión
 

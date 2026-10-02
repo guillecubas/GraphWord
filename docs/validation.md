@@ -1,6 +1,9 @@
-# Validación de esta etapa
+# Historial de validación
 
-## Hito de particiones y reducción (estado actual)
+La validación actual de AWS está en [aws-validation.md](aws-validation.md).
+Los resultados siguientes se conservan como historial de cada etapa.
+
+## Hito de particiones y reducción local
 
 43 pruebas pasan localmente en Python 3.12.14. La nueva prueba HTTP con TestClient
 envía una construcción y ejecuta dos procesos worker distintos, uno por partición,

@@ -1,8 +1,10 @@
 # GraphWord en Python
 
-Reimplementación con motor de grafos particionable, API HTTP local y pruebas. Esta
-rama sustituye Java por Python. No contiene todavía integración con AWS ni un
-despliegue distribuido.
+Motor de grafos particionable, API FastAPI y workers independientes en Python.
+Incluye adaptadores locales y AWS (S3, DynamoDB, SQS), infraestructura y despliegue
+reproducible para AWS Academy. Empieza por la [guía explicada paso a paso](docs/guia-proyecto.md)
+y consulta el [informe de validación AWS](docs/aws-validation.md) para distinguir
+código disponible, pruebas simuladas y comprobaciones reales.
 
 ## Ejecutar
 
@@ -30,7 +32,10 @@ El ejemplo devuelve 20 nodos, 29 aristas, 2 componentes y el camino
 | `graphword/local_app.py` | Entrada Uvicorn configurada con SQLite |
 | `graphword/worker_cli.py` | Worker local continuo o de una sola ejecución |
 | `graphword/__main__.py` | Demostración por terminal; lectura del fichero y salida JSON |
-| `tests/test_graph.py` | 12 pruebas, incluyendo comparación con un constructor independiente |
+| `tests/test_graph.py` | Pruebas del motor, incluyendo un constructor independiente |
+| `graphword/aws_storage.py` | Objetos S3, trabajos DynamoDB, avisos SQS y reconciliación |
+| `graphword/aws_app.py` / `aws_worker.py` | API y procesos AWS |
+| `infra/storage.json` / `scripts/deploy_aws.py` | Infraestructura y despliegue del laboratorio |
 | `.github/workflows/ci.yml` | Pruebas en Python 3.11/3.12 y conservación de sus resultados |
 | `docs/architecture.md` | Diseño objetivo de aplicación y tecnología, y limitaciones |
 | `docs/steps.md` | Guía de commits y siguientes etapas |
@@ -44,7 +49,8 @@ No usamos `hash()` de Python porque su valor para cadenas puede variar entre pro
 
 Así no se pierde una conexión entre palabras que una división por bloques hubiera
 separado. La unión conserva nodos aislados y tolera que se repita una partición.
-Esta propiedad no equivale todavía a implementar reintentos seguros de trabajos AWS.
+Esta propiedad matemática es distinta del control de reintentos AWS, que usa
+estados persistentes, revisiones condicionales y tokens por intento.
 
 El código crea cadenas de patrones y las procesa para cada palabra: el trabajo de
 indexación incluye O(N L²), además del coste de emitir aristas. Cada partición vuelve
@@ -71,7 +77,8 @@ Implementado localmente: contrato 202, máquina de estados con leases, persisten
 SQLite y workers ejecutables en procesos distintos. Las construcciones enviadas a
 `/v1/jobs/partitioned-builds` reparten un mismo grafo en trabajos de partición y un
 reductor. Véase [la demostración reproducible](docs/partitioned-builds.md).
-Pendiente: adaptadores AWS, infraestructura, despliegue y medidas de rendimiento.
+También existen adaptadores AWS y despliegue con dos nodos EC2. Las medidas
+comparativas de rendimiento y el endurecimiento para producción siguen pendientes.
 
 ## API local
 
@@ -94,7 +101,14 @@ python -m graphword.worker_cli --database var/graphword.db --worker-id worker-1
 
 `POST /v1/jobs/graph-builds` crea un trabajo `PENDING`; el worker lo reclama y el
 cliente consulta su evolución. API y worker ya pueden ser procesos distintos, pero
-siguen dependiendo de un único fichero local: esto no es aún un sistema distribuido.
+siguen dependiendo de un único fichero local: esta modalidad local no es distribuida.
+La modalidad AWS sustituye ese fichero por servicios compartidos.
+
+## AWS Academy
+
+Instala `python -m pip install -e ".[test,aws,aws-test]"` y sigue
+[la guía operativa](docs/aws-operations.md). La API remota se accede mediante un túnel
+SSM, no mediante una URL pública. Nunca subas credenciales al repositorio.
 
 Los archivos `data/` proceden del repositorio original y se conservan como ejemplos.
 Sus fuentes y licencias deben documentarse antes de presentarlos como un corpus real.
