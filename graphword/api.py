@@ -128,10 +128,10 @@ def create_app(
     selected_job_repository = job_repository or InMemoryJobRepository()
     application = FastAPI(
         title="GraphWord API",
-        version="0.5.0",
+        version="0.6.0",
         description=(
-            "Local API and leased-job milestone. The configured adapters are not "
-            "the final AWS distributed architecture."
+            "Word graphs with interchangeable local and AWS storage adapters. "
+            "Partitioned jobs are processed by independent workers."
         ),
     )
 
@@ -199,10 +199,13 @@ def create_app(
         response: Response,
         jobs: JobRepositoryDependency,
     ) -> JobResponse:
-        job = jobs.create(
-            JobKind.GRAPH_BUILD,
-            {"words": request.words, "partitions": request.partitions},
-        )
+        try:
+            job = jobs.create(
+                JobKind.GRAPH_BUILD,
+                {"words": request.words, "partitions": request.partitions},
+            )
+        except ValueError as error:
+            raise HTTPException(422, detail={"code": "invalid_build", "message": str(error)}) from error
         response.headers["Location"] = f"/v1/jobs/{job.job_id}"
         return job_response(job)
 
