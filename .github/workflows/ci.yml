@@ -70,7 +70,7 @@ jobs:
           aws-region: us-east-1
           role-duration-seconds: 3600
       - name: Deploy, verify and stop lab nodes
-        run: python scripts/ci_deploy.py
+        run: python scripts/despliegue/ci_deploy.py
       - name: Preserve deployment evidence
         if: always()
         uses: actions/upload-artifact@v4

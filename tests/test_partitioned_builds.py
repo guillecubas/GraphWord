@@ -12,11 +12,11 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from graphword.api import create_app
-from graphword.graph import build_partition
-from graphword.jobs import InvalidJobTransition, JobKind, JobStatus
-from graphword.sqlite_storage import SQLiteGraphRepository, SQLiteJobRepository
-from graphword.worker import GraphWordWorker
+from graphword.api.routes import create_app
+from graphword.motor.graph import build_partition
+from graphword.trabajos.jobs import InvalidJobTransition, JobKind, JobStatus
+from graphword.almacenamiento.sqlite_storage import SQLiteGraphRepository, SQLiteJobRepository
+from graphword.trabajos.worker import GraphWordWorker
 
 
 class PartitionedBuildTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class PartitionedBuildTests(unittest.TestCase):
             # collaboration, not a speedup benchmark or guaranteed fair scheduling.
             for worker_id in ("worker-a", "worker-b"):
                 completed = subprocess.run([
-                    sys.executable, "-m", "graphword.worker_cli", "--once",
+                    sys.executable, "-m", "graphword.trabajos.worker_cli", "--once",
                     "--database", str(self.path), "--worker-id", worker_id,
                 ], cwd=Path(__file__).resolve().parents[1], capture_output=True,
                     text=True, check=True, timeout=30)
@@ -57,8 +57,11 @@ class PartitionedBuildTests(unittest.TestCase):
             results = connection.execute(
                 "SELECT result_json FROM jobs WHERE kind = 'BUILD_PARTITION'"
             ).fetchall()
-        self.assertEqual({json.loads(row[0])["worker_id"] for row in results},
-                         {"worker-a", "worker-b"})
+        # Comprobar que los dos procesos participaron en la construcción.
+        worker_ids = set()
+        for row in results:
+            worker_ids.add(json.loads(row[0])["worker_id"])
+        self.assertEqual(worker_ids, {"worker-a", "worker-b"})
 
     def test_reducer_cannot_be_claimed_while_partition_is_running(self):
         parent = self.jobs.create_partitioned_build(self.words, 1)

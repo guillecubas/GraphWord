@@ -1,0 +1,462 @@
+"""Guardar grafos y tareas en SQLite para compartirlos entre procesos locales."""
+
+from collections.abc import Callable, Mapping
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
+import sqlite3
+from typing import Any, Iterator
+from uuid import UUID, uuid4
+
+from graphword.motor.graph import Graph, normalize_words
+from graphword.trabajos.jobs import (
+    ClaimedJob,
+    InvalidJobTransition,
+    Job,
+    JobKind,
+    JobNotFoundError,
+    JobStatus,
+    utc_now,
+)
+from graphword.almacenamiento.storage import GraphNotFoundError
+from graphword.trabajos.submissions import submission_identity, require_same_request
+
+
+# Las tablas separan los grafos, las tareas y sus dependencias.
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS graphs (
+    graph_id TEXT PRIMARY KEY,
+    adjacency_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    job_id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    max_attempts INTEGER NOT NULL,
+    result_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    worker_id TEXT,
+    attempt_token TEXT,
+    lease_expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS jobs_pending_order
+ON jobs(status, created_at, job_id);
+
+CREATE TABLE IF NOT EXISTS job_dependencies (
+    parent_id TEXT NOT NULL REFERENCES jobs(job_id),
+    child_id TEXT NOT NULL REFERENCES jobs(job_id),
+    PRIMARY KEY(parent_id, child_id)
+);
+CREATE TABLE IF NOT EXISTS submission_keys (
+    submission_id TEXT PRIMARY KEY,
+    request_hash TEXT NOT NULL,
+    job_id TEXT NOT NULL REFERENCES jobs(job_id)
+);
+"""
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        raise ValueError("clock must return timezone-aware datetimes")
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+class _SQLiteAdapter:
+    def __init__(self, database: str | Path) -> None:
+        self._database = str(database)
+        self._initialize()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self._database, timeout=5)
+        # Leer columnas por nombre y activar la comprobación de relaciones.
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
+        return connection
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        # Confirmar al terminar; deshacer si el bloque with falla.
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def _initialize(self) -> None:
+        with self._connection() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
+            connection.executescript(SCHEMA)
+
+
+class SQLiteGraphRepository(_SQLiteAdapter):
+    """Guardar grafos de forma persistente en la base de datos compartida."""
+
+    def __init__(
+        self,
+        database: str | Path,
+        *,
+        id_factory: Callable[[], UUID] = uuid4,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
+        self._id_factory = id_factory
+        self._clock = clock
+        super().__init__(database)
+
+    def save(self, graph: Graph) -> UUID:
+        graph_id = self._id_factory()
+        # Guardar conjuntos de vecinos como listas para poder usar JSON.
+        adjacency = {}
+        for node, neighbors in sorted(graph.items()):
+            adjacency[node] = sorted(neighbors)
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    "INSERT INTO graphs(graph_id, adjacency_json, created_at) VALUES (?, ?, ?)",
+                    (str(graph_id), _json(adjacency), _timestamp(self._clock())),
+                )
+        except sqlite3.IntegrityError as error:
+            raise ValueError("graph id already exists") from error
+        return graph_id
+
+    def get(self, graph_id: UUID) -> Graph:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT adjacency_json FROM graphs WHERE graph_id = ?",
+                (str(graph_id),),
+            ).fetchone()
+        if row is None:
+            raise GraphNotFoundError(str(graph_id))
+        adjacency = json.loads(row["adjacency_json"])
+        graph = {}
+        for node, neighbors in adjacency.items():
+            graph[node] = set(neighbors)
+        return graph
+
+
+class SQLiteJobRepository(_SQLiteAdapter):
+    """Guardar tareas y reservarlas de forma atómica mediante transacciones."""
+
+    def __init__(
+        self,
+        database: str | Path,
+        *,
+        id_factory: Callable[[], UUID] = uuid4,
+        token_factory: Callable[[], UUID] = uuid4,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
+        self._id_factory = id_factory
+        self._token_factory = token_factory
+        self._clock = clock
+        super().__init__(database)
+
+    def create_partitioned_build(
+        self,
+        words: list[str],
+        partitions: int,
+        *,
+        idempotency_key=None,
+        source=None,
+    ) -> Job:
+        """Registrar todas las particiones y su reductor en una sola transacción."""
+        if not 1 <= partitions <= 64:
+            raise ValueError("partitions must be between 1 and 64")
+        clean = normalize_words(words)
+        if not clean:
+            raise ValueError("no valid words supplied")
+        identity = {"words": clean, "partitions": partitions}
+        if source is not None:
+            identity["source"] = source
+        stable_id, request_hash = submission_identity(JobKind.REDUCE_GRAPH,
+            identity, 3, idempotency_key)
+        parent_id = stable_id
+        if not parent_id:
+            parent_id = uuid4()
+        child_ids = []
+        for index in range(partitions):
+            child_ids.append(uuid4())
+        now = _timestamp(self._clock())
+        # El reductor depende de todas las tareas de partición.
+        partition_jobs = []
+        for child_id in child_ids:
+            partition_jobs.append(str(child_id))
+        records = [(parent_id, JobKind.REDUCE_GRAPH, {
+            "partition_jobs": partition_jobs,
+        })]
+        if source is not None:
+            records[0][2]["source"] = source
+        for index, child_id in enumerate(child_ids):
+            payload = {
+                "words": clean,
+                "partition": index,
+                "partitions": partitions,
+            }
+            records.append((child_id, JobKind.BUILD_PARTITION, payload))
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = self._existing_submission(connection, stable_id, request_hash)
+            if existing:
+                return existing
+            for job_id, kind, payload in records:
+                connection.execute(
+                    """INSERT INTO jobs(job_id, kind, status, payload_json,
+                       attempts, max_attempts, created_at, updated_at)
+                       VALUES (?, ?, 'PENDING', ?, 0, 3, ?, ?)""",
+                    (str(job_id), kind.value, _json(payload), now, now),
+                )
+            # Registrar todas las dependencias dentro de la misma transacción.
+            dependencies = []
+            for child_id in child_ids:
+                dependencies.append((str(parent_id), str(child_id)))
+            connection.executemany(
+                "INSERT INTO job_dependencies(parent_id, child_id) VALUES (?, ?)",
+                dependencies,
+            )
+            self._remember_submission(connection, stable_id, request_hash, parent_id)
+        return self.get(parent_id)
+
+    def create(
+        self,
+        kind: JobKind,
+        payload: Mapping[str, Any],
+        max_attempts: int = 3,
+        *, idempotency_key=None,
+    ) -> Job:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
+        stable_id, request_hash = submission_identity(kind, payload, max_attempts, idempotency_key)
+        job_id = stable_id
+        if not job_id:
+            job_id = self._id_factory()
+        now = _timestamp(self._clock())
+        try:
+            with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = self._existing_submission(connection, stable_id, request_hash)
+                if existing:
+                    return existing
+                connection.execute(
+                    """
+                    INSERT INTO jobs(
+                        job_id, kind, status, payload_json, attempts, max_attempts,
+                        result_json, error, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, 0, ?, NULL, NULL, ?, ?)
+                    """,
+                    (str(job_id), kind.value, JobStatus.PENDING.value,
+                     _json(dict(payload)), max_attempts, now, now),
+                )
+                self._remember_submission(connection, stable_id, request_hash, job_id)
+        except sqlite3.IntegrityError as error:
+            raise ValueError("job id already exists") from error
+        return self.get(job_id)
+
+    def _existing_submission(self, connection, stable_id, request_hash):
+        if stable_id is None:
+            return None
+        row = connection.execute(
+            "SELECT * FROM submission_keys WHERE submission_id = ?",
+            (str(stable_id),),
+        ).fetchone()
+        if row is None:
+            return None
+        require_same_request(row["request_hash"], request_hash)
+        job_row = connection.execute(
+            "SELECT * FROM jobs WHERE job_id = ?",
+            (row["job_id"],),
+        ).fetchone()
+        return self._snapshot(job_row)
+
+    @staticmethod
+    def _remember_submission(connection, stable_id, request_hash, job_id):
+        if stable_id:
+            connection.execute("INSERT INTO submission_keys VALUES (?, ?, ?)",
+                               (str(stable_id), request_hash, str(job_id)))
+
+    def get(self, job_id: UUID) -> Job:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE job_id = ?", (str(job_id),)
+            ).fetchone()
+        if row is None:
+            raise JobNotFoundError(str(job_id))
+        return self._snapshot(row)
+
+    def claim_next(self, worker_id: str, lease_seconds: int = 30) -> ClaimedJob | None:
+        if not worker_id.strip():
+            raise ValueError("worker_id must not be empty")
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds must be positive")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            # Leer la hora después de obtener el bloqueo, no antes de la espera.
+            now_value = self._clock()
+            now = _timestamp(now_value)
+            lease_expires_at = now_value + timedelta(seconds=lease_seconds)
+            connection.execute(
+                """
+                UPDATE jobs
+                SET status = CASE WHEN attempts < max_attempts THEN ? ELSE ? END,
+                    error = 'worker lease expired', worker_id = NULL,
+                    attempt_token = NULL, lease_expires_at = NULL, updated_at = ?
+                WHERE status = ? AND lease_expires_at <= ?
+                """,
+                (JobStatus.PENDING.value, JobStatus.FAILED.value, now,
+                 JobStatus.RUNNING.value, now),
+            )
+            self._propagate_failures(connection, now)
+            row = connection.execute(
+                """
+                SELECT * FROM jobs
+                WHERE status = ? AND NOT EXISTS (
+                    SELECT 1 FROM job_dependencies AS d
+                    JOIN jobs AS child ON child.job_id = d.child_id
+                    WHERE d.parent_id = jobs.job_id AND child.status != 'SUCCEEDED'
+                )
+                ORDER BY created_at, job_id
+                LIMIT 1
+                """,
+                (JobStatus.PENDING.value,),
+            ).fetchone()
+            if row is None:
+                return None
+            token = self._token_factory()
+            attempt = row["attempts"] + 1
+            connection.execute(
+                """
+                UPDATE jobs
+                SET status = ?, attempts = ?, error = NULL, worker_id = ?,
+                    attempt_token = ?, lease_expires_at = ?, updated_at = ?
+                WHERE job_id = ? AND status = ?
+                """,
+                (JobStatus.RUNNING.value, attempt, worker_id, str(token),
+                 _timestamp(lease_expires_at), now, row["job_id"],
+                 JobStatus.PENDING.value),
+            )
+            return ClaimedJob(
+                job_id=UUID(row["job_id"]),
+                kind=JobKind(row["kind"]),
+                payload=json.loads(row["payload_json"]),
+                worker_id=worker_id,
+                attempt=attempt,
+                attempt_token=token,
+                lease_expires_at=lease_expires_at,
+            )
+
+    def renew(self, claim: ClaimedJob, lease_seconds: int) -> None:
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds must be positive")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
+            self._require_active(connection, claim, now)
+            expiry = now + timedelta(seconds=lease_seconds)
+            connection.execute(
+                "UPDATE jobs SET lease_expires_at = ?, updated_at = ? WHERE job_id = ?",
+                (_timestamp(expiry), _timestamp(now), str(claim.job_id)),
+            )
+
+    def complete(self, claim: ClaimedJob, result: Mapping[str, Any]) -> Job:
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
+            self._require_active(connection, claim, now)
+            connection.execute(
+                """
+                UPDATE jobs
+                SET status = ?, result_json = ?, error = NULL, worker_id = NULL,
+                    attempt_token = NULL, lease_expires_at = NULL, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (JobStatus.SUCCEEDED.value, _json(dict(result)), _timestamp(now),
+                 str(claim.job_id)),
+            )
+        return self.get(claim.job_id)
+
+    def fail(self, claim: ClaimedJob, error: str, retryable: bool = True) -> Job:
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
+            row = self._require_active(connection, claim, now)
+            # Reintentar únicamente si el fallo lo permite y quedan intentos.
+            if retryable and row["attempts"] < row["max_attempts"]:
+                status = JobStatus.PENDING
+            else:
+                status = JobStatus.FAILED
+            connection.execute(
+                """
+                UPDATE jobs
+                SET status = ?, error = ?, worker_id = NULL, attempt_token = NULL,
+                    lease_expires_at = NULL, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (status.value, error, _timestamp(now), str(claim.job_id)),
+            )
+            self._propagate_failures(connection, _timestamp(now))
+        return self.get(claim.job_id)
+
+    @staticmethod
+    def _propagate_failures(connection: sqlite3.Connection, now: str) -> None:
+        # Este flujo tiene un nivel de dependencias: particiones -> reductor.
+        connection.execute(
+            """UPDATE jobs SET status = 'FAILED', error = 'partition job failed',
+               updated_at = ? WHERE status = 'PENDING' AND EXISTS (
+                   SELECT 1 FROM job_dependencies AS d
+                   JOIN jobs AS child ON child.job_id = d.child_id
+                   WHERE d.parent_id = jobs.job_id AND child.status = 'FAILED'
+               )""", (now,),
+        )
+
+    @staticmethod
+    def _require_active(
+        connection: sqlite3.Connection,
+        claim: ClaimedJob,
+        now: datetime,
+    ) -> sqlite3.Row:
+        row = connection.execute(
+            "SELECT * FROM jobs WHERE job_id = ?", (str(claim.job_id),)
+        ).fetchone()
+        if row is None:
+            raise JobNotFoundError(str(claim.job_id))
+        if (
+            row["status"] != JobStatus.RUNNING.value
+            or row["worker_id"] != claim.worker_id
+            or row["attempt_token"] != str(claim.attempt_token)
+            or row["lease_expires_at"] is None
+            or datetime.fromisoformat(row["lease_expires_at"]) <= now
+        ):
+            raise InvalidJobTransition("claim is stale or no longer active")
+        return row
+
+    @staticmethod
+    def _snapshot(row: sqlite3.Row) -> Job:
+        # SQLite devuelve texto JSON; convertirlo al resultado público de la tarea.
+        result = None
+        if row["result_json"]:
+            result = json.loads(row["result_json"])
+        return Job(
+            job_id=UUID(row["job_id"]),
+            kind=JobKind(row["kind"]),
+            status=JobStatus(row["status"]),
+            attempts=row["attempts"],
+            max_attempts=row["max_attempts"],
+            result=result,
+            error=row["error"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )

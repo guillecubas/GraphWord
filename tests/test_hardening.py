@@ -1,3 +1,4 @@
+# Pruebas de integridad, reintentos, concurrencia y renovación de reservas.
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -9,13 +10,13 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from graphword.api import create_app
-from graphword.jobs import InMemoryJobRepository, JobKind, JobStatus, InvalidJobTransition
-from graphword.sqlite_storage import SQLiteJobRepository
-from graphword.storage import InMemoryGraphRepository
-from graphword.submissions import IdempotencyConflict
-from graphword.worker import GraphWordWorker
-from scripts.build_corpus import lexical_entries, pronounced_entries
+from graphword.api.routes import create_app
+from graphword.trabajos.jobs import InMemoryJobRepository, JobKind, JobStatus, InvalidJobTransition
+from graphword.almacenamiento.sqlite_storage import SQLiteJobRepository
+from graphword.almacenamiento.storage import InMemoryGraphRepository
+from graphword.trabajos.submissions import IdempotencyConflict
+from graphword.trabajos.worker import GraphWordWorker
+from scripts.datos.build_corpus import lexical_entries, pronounced_entries
 
 
 class HardeningTests(unittest.TestCase):
@@ -31,7 +32,11 @@ class HardeningTests(unittest.TestCase):
         lexical = set((folder / "scowl-base-words.txt").read_text().splitlines())
         pronounced = set((folder / "cmu-pronounced-words.txt").read_text().splitlines())
         for length in range(3, 9):
-            self.assertEqual({word for word in lexical & pronounced if len(word) == length},
+            expected_words = set()
+            for word in lexical.intersection(pronounced):
+                if len(word) == length:
+                    expected_words.add(word)
+            self.assertEqual(expected_words,
                 set((folder / f"words{length}.txt").read_text().splitlines()))
 
     def test_memory_concurrent_retry_returns_one_job(self):
@@ -39,7 +44,9 @@ class HardeningTests(unittest.TestCase):
         def submit(_):
             return jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1}, idempotency_key="same")
         with ThreadPoolExecutor(max_workers=4) as pool:
-            ids = {job.job_id for job in pool.map(submit, range(8))}
+            ids = set()
+            for job in pool.map(submit, range(8)):
+                ids.add(job.job_id)
         self.assertEqual(1, len(ids))
         with self.assertRaises(IdempotencyConflict):
             jobs.create(JobKind.GRAPH_BUILD, {"words": ["dog"], "partitions": 1}, idempotency_key="same")
@@ -71,8 +78,13 @@ class HardeningTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             for kind in ("memory", "sqlite"):
                 now = [datetime.now(timezone.utc)]
-                jobs = (InMemoryJobRepository(clock=lambda: now[0]) if kind == "memory" else
-                        SQLiteJobRepository(Path(folder) / "jobs.db", clock=lambda: now[0]))
+                def current_time():
+                    return now[0]
+
+                if kind == "memory":
+                    jobs = InMemoryJobRepository(clock=current_time)
+                else:
+                    jobs = SQLiteJobRepository(Path(folder) / "jobs.db", clock=current_time)
                 job = jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
                 claim = jobs.claim_next("a", 3)
                 now[0] += timedelta(seconds=2)
@@ -85,7 +97,8 @@ class HardeningTests(unittest.TestCase):
                 self.assertEqual(1, jobs.get(job.job_id).attempts)
 
     def test_slow_worker_renews_and_finishes(self):
-        jobs, graphs = InMemoryJobRepository(), InMemoryGraphRepository()
+        jobs = InMemoryJobRepository()
+        graphs = InMemoryGraphRepository()
         job = jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
         worker = GraphWordWorker(jobs, graphs)
         def slow(_):
@@ -97,7 +110,8 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(JobStatus.SUCCEEDED, jobs.get(job.job_id).status)
 
     def test_heartbeat_failure_cannot_publish_success(self):
-        jobs, graphs = InMemoryJobRepository(), InMemoryGraphRepository()
+        jobs = InMemoryJobRepository()
+        graphs = InMemoryGraphRepository()
         job = jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
         worker = GraphWordWorker(jobs, graphs)
         def slow(_):

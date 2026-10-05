@@ -1,3 +1,4 @@
+# Pruebas de los algoritmos y comparación con un oráculo independiente.
 import json
 import os
 from pathlib import Path
@@ -6,7 +7,7 @@ import subprocess
 import sys
 import unittest
 
-from graphword.graph import (
+from graphword.motor.graph import (
     all_simple_paths, build_partition, components, dense_subgraphs, k_core,
     longest_simple_path, merge_partitions, nodes_by_degree, normalize_words,
     partition_for, shortest_path, summary,
@@ -15,12 +16,20 @@ from graphword.graph import (
 
 def pairwise_reference(words):
     words = sorted(set(words))
-    graph = {word: set() for word in words}
+    # Este oráculo compara parejas directamente, sin usar patrones del motor.
+    graph = {}
+    for word in words:
+        graph[word] = set()
     for i, first in enumerate(words):
         for second in words[i + 1:]:
-            if len(first) == len(second) and sum(a != b for a, b in zip(first, second)) == 1:
-                graph[first].add(second)
-                graph[second].add(first)
+            if len(first) == len(second):
+                differences = 0
+                for first_letter, second_letter in zip(first, second):
+                    if first_letter != second_letter:
+                        differences += 1
+                if differences == 1:
+                    graph[first].add(second)
+                    graph[second].add(first)
     return graph
 
 
@@ -38,20 +47,34 @@ class GraphTests(unittest.TestCase):
     def test_partition_union_against_independent_oracle(self):
         rng = random.Random(42)
         for trial in range(20):
-            words = ["".join(rng.choices("abcde", k=rng.randint(1, 5))) for _ in range(70)]
+            # Usar una semilla fija hace reproducibles los ejemplos aleatorios.
+            words = []
+            for index in range(70):
+                word = "".join(rng.choices("abcde", k=rng.randint(1, 5)))
+                words.append(word)
             expected = pairwise_reference(words)
             for count in (1, 2, 7, 31):
                 with self.subTest(trial=trial, count=count):
-                    parts = [build_partition(words, i, count) for i in range(count)]
+                    parts = []
+                    for index in range(count):
+                        parts.append(build_partition(words, index, count))
                     self.assertEqual(merge_partitions(parts), expected)
-                    self.assertEqual(sum(sum(map(len, p.values())) for p in parts),
-                                     sum(map(len, expected.values())))
+                    partition_connections = 0
+                    for part in parts:
+                        for neighbors in part.values():
+                            partition_connections += len(neighbors)
+                    expected_connections = 0
+                    for neighbors in expected.values():
+                        expected_connections += len(neighbors)
+                    self.assertEqual(partition_connections, expected_connections)
 
     def test_partition_ids_stable_in_separate_interpreters(self):
-        expression = "from graphword.graph import partition_for; print(partition_for('c*t', 31))"
+        expression = "from graphword.motor.graph import partition_for; print(partition_for('c*t', 31))"
         for seed in ("1", "123"):
+            environment = dict(os.environ)
+            environment["PYTHONHASHSEED"] = seed
             output = subprocess.check_output([sys.executable, "-c", expression],
-                                             env={**os.environ, "PYTHONHASHSEED": seed}, text=True)
+                                             env=environment, text=True)
             self.assertEqual(int(output), partition_for("c*t", 31))
 
     def test_retrying_partition_does_not_duplicate_edges(self):
@@ -112,12 +135,28 @@ class GraphTests(unittest.TestCase):
 
     def test_bounded_path_search_validates_limits_and_unknown_nodes(self):
         graph = build_partition(["cat", "bat"])
+        # Cada función representa una entrada inválida que debe rechazarse.
+        def unknown_word():
+            return all_simple_paths(graph, "cat", "dog")
+
+        def invalid_path_count():
+            return all_simple_paths(graph, "cat", "bat", max_paths=0)
+
+        def invalid_state_count():
+            return all_simple_paths(graph, "cat", "bat", max_states=0)
+
+        def invalid_depth():
+            return longest_simple_path(graph, "cat", "bat", max_depth=-1)
+
+        def invalid_timeout():
+            return longest_simple_path(graph, "cat", "bat", timeout_seconds=0)
+
         invalid_calls = [
-            lambda: all_simple_paths(graph, "cat", "dog"),
-            lambda: all_simple_paths(graph, "cat", "bat", max_paths=0),
-            lambda: all_simple_paths(graph, "cat", "bat", max_states=0),
-            lambda: longest_simple_path(graph, "cat", "bat", max_depth=-1),
-            lambda: longest_simple_path(graph, "cat", "bat", timeout_seconds=0),
+            unknown_word,
+            invalid_path_count,
+            invalid_state_count,
+            invalid_depth,
+            invalid_timeout,
         ]
         for call in invalid_calls:
             with self.subTest(call=call):
@@ -141,7 +180,10 @@ class GraphTests(unittest.TestCase):
             "e": {"d"},
             "z": set(),
         }
-        original = {node: set(neighbors) for node, neighbors in graph.items()}
+        # Conservar una copia para comprobar que el motor no modifica la entrada.
+        original = {}
+        for node, neighbors in graph.items():
+            original[node] = set(neighbors)
         self.assertEqual(k_core(graph, 2), {
             "a": {"b", "c"},
             "b": {"a", "c"},

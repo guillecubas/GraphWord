@@ -1,12 +1,13 @@
+# Pruebas HTTP: preparar datos, enviar peticiones y comprobar respuestas.
 import unittest
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from graphword.api import create_app
-from graphword.jobs import InMemoryJobRepository
-from graphword.storage import InMemoryGraphRepository
-from graphword.worker import GraphWordWorker
+from graphword.api.routes import create_app
+from graphword.trabajos.jobs import InMemoryJobRepository
+from graphword.almacenamiento.storage import InMemoryGraphRepository
+from graphword.trabajos.worker import GraphWordWorker
 
 
 GRAPH_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -15,8 +16,15 @@ JOB_ID = UUID("00000000-0000-0000-0000-000000000002")
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
-        self.graphs = InMemoryGraphRepository(id_factory=lambda: GRAPH_ID)
-        self.jobs = InMemoryJobRepository(id_factory=lambda: JOB_ID)
+        # Los identificadores fijos hacen comparables las respuestas de la API.
+        def graph_id():
+            return GRAPH_ID
+
+        def job_id():
+            return JOB_ID
+
+        self.graphs = InMemoryGraphRepository(id_factory=graph_id)
+        self.jobs = InMemoryJobRepository(id_factory=job_id)
         self.client = TestClient(create_app(self.graphs, self.jobs))
 
     def test_health_discloses_local_storage(self):
@@ -26,7 +34,7 @@ class ApiTests(unittest.TestCase):
             "status": "ok",
             "storage": "in-memory-local",
         })
-        self.assertEqual(self.client.get("/openapi.json").json()["info"]["version"], "0.6.0")
+        self.assertEqual(self.client.get("/openapi.json").json()["info"]["version"], "0.7.0")
 
     def test_create_and_read_graph(self):
         response = self.client.post("/v1/graphs", json={

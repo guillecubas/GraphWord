@@ -10,18 +10,22 @@ try:
     from moto import mock_aws
 except ImportError:
     boto3 = None
-    mock_aws = lambda: (lambda cls: cls)
+    # Sin Moto, conservar el decorador; skipIf omitirá las pruebas AWS.
+    def mock_aws():
+        def unchanged_class(cls):
+            return cls
+        return unchanged_class
 
-from graphword.graph import build_partition
-from graphword.jobs import InvalidJobTransition, JobKind, JobStatus
-from graphword.worker import GraphWordWorker
+from graphword.motor.graph import build_partition
+from graphword.trabajos.jobs import InvalidJobTransition, JobKind, JobStatus
+from graphword.trabajos.worker import GraphWordWorker
 
 
 @unittest.skipIf(boto3 is None, "install .[aws,aws-test]")
 @mock_aws()
 class AWSStorageTests(unittest.TestCase):
     def setUp(self):
-        from graphword.aws_storage import AWSJobRepository, S3GraphRepository
+        from graphword.almacenamiento.aws_storage import AWSJobRepository, S3GraphRepository
         session = boto3.Session(region_name="us-east-1")
         s3 = session.client("s3")
         s3.create_bucket(Bucket="graphword-tests")
@@ -34,8 +38,12 @@ class AWSStorageTests(unittest.TestCase):
         self.sqs = session.client("sqs")
         self.url = self.sqs.create_queue(QueueName="jobs")["QueueUrl"]
         self.now = datetime.now(timezone.utc)
+        # El reloj controlado permite simular reservas que caducan.
+        def current_time():
+            return self.now
+
         self.jobs = AWSJobRepository(self.table, self.sqs, self.url, self.graphs,
-                                     clock=lambda: self.now, wait_seconds=0)
+                                     clock=current_time, wait_seconds=0)
         self.worker = GraphWordWorker(self.jobs, self.graphs)
 
     def drain(self, count=30):
@@ -44,7 +52,7 @@ class AWSStorageTests(unittest.TestCase):
             self.worker.run_once("test-worker")
 
     def test_s3_round_trip_and_missing(self):
-        from graphword.storage import GraphNotFoundError
+        from graphword.almacenamiento.storage import GraphNotFoundError
         graph = build_partition(["cat", "bat", "zzz"])
         self.assertEqual(graph, self.graphs.get(self.graphs.save(graph)))
         with self.assertRaises(GraphNotFoundError):
@@ -64,7 +72,7 @@ class AWSStorageTests(unittest.TestCase):
             self.jobs.renew(claim, 10)
 
     def test_aws_idempotency_single_and_partitioned(self):
-        from graphword.submissions import IdempotencyConflict
+        from graphword.trabajos.submissions import IdempotencyConflict
         job = self.jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1}, idempotency_key="one")
         self.assertEqual(job.job_id, self.jobs.create(JobKind.GRAPH_BUILD,
             {"words": ["cat"], "partitions": 1}, idempotency_key="one").job_id)
@@ -157,7 +165,7 @@ class AWSStorageTests(unittest.TestCase):
         claim = self.jobs.claim_next("one")
         with patch.object(self.sqs, "delete_message", side_effect=ClientError(
                 {"Error": {"Code": "InternalError", "Message": "test"}}, "DeleteMessage")):
-            with self.assertLogs("graphword.aws_storage", level="WARNING"):
+            with self.assertLogs("graphword.almacenamiento.aws_storage", level="WARNING"):
                 self.jobs.complete(claim, {"graph_id": "done"})
         self.assertEqual(JobStatus.SUCCEEDED, self.jobs.get(job.job_id).status)
 
@@ -168,7 +176,7 @@ class AWSStorageTests(unittest.TestCase):
 
     def test_http_with_shared_cloud_repositories(self):
         from fastapi.testclient import TestClient
-        from graphword.api import create_app
+        from graphword.api.routes import create_app
         client = TestClient(create_app(self.graphs, self.jobs, partitioned_builds=self.jobs))
         response = client.post("/v1/jobs/partitioned-builds", json={"words": ["cat", "bat"], "partitions": 2})
         self.assertEqual(202, response.status_code)

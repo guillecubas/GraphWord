@@ -1,3 +1,4 @@
+# Pruebas del almacenamiento persistente y de las reservas entre procesos.
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -8,15 +9,24 @@ from tempfile import TemporaryDirectory
 import unittest
 from uuid import UUID
 
-from graphword.jobs import InvalidJobTransition, JobKind, JobStatus
-from graphword.sqlite_storage import SQLiteGraphRepository, SQLiteJobRepository
-from graphword.worker import GraphWordWorker
+from graphword.trabajos.jobs import InvalidJobTransition, JobKind, JobStatus
+from graphword.almacenamiento.sqlite_storage import SQLiteGraphRepository, SQLiteJobRepository
+from graphword.trabajos.worker import GraphWordWorker
 
 
 JOB_ID = UUID("00000000-0000-0000-0000-000000000030")
 TOKEN_1 = UUID("00000000-0000-0000-0000-000000000031")
 TOKEN_2 = UUID("00000000-0000-0000-0000-000000000032")
 GRAPH_ID = UUID("00000000-0000-0000-0000-000000000040")
+
+
+# Estas fábricas devuelven los mismos identificadores en cada prueba.
+def fixed_job_id():
+    return JOB_ID
+
+
+def fixed_graph_id():
+    return GRAPH_ID
 
 
 class ManualClock:
@@ -37,7 +47,7 @@ class SQLiteStorageTests(unittest.TestCase):
         self.database = Path(self.temporary_directory.name) / "graphword.db"
 
     def test_graph_survives_repository_recreation(self):
-        writer = SQLiteGraphRepository(self.database, id_factory=lambda: GRAPH_ID)
+        writer = SQLiteGraphRepository(self.database, id_factory=fixed_graph_id)
         writer.save({"cat": {"bat"}, "bat": {"cat"}, "dog": set()})
 
         reader = SQLiteGraphRepository(self.database)
@@ -46,13 +56,13 @@ class SQLiteStorageTests(unittest.TestCase):
         })
 
     def test_separate_repository_instances_share_jobs_and_graphs(self):
-        api_jobs = SQLiteJobRepository(self.database, id_factory=lambda: JOB_ID)
+        api_jobs = SQLiteJobRepository(self.database, id_factory=fixed_job_id)
         api_jobs.create(JobKind.GRAPH_BUILD, {
             "words": ["cat", "bat", "bad", "dad"], "partitions": 2,
         })
 
         worker_jobs = SQLiteJobRepository(self.database)
-        worker_graphs = SQLiteGraphRepository(self.database, id_factory=lambda: GRAPH_ID)
+        worker_graphs = SQLiteGraphRepository(self.database, id_factory=fixed_graph_id)
         worker = GraphWordWorker(worker_jobs, worker_graphs)
         self.assertTrue(worker.run_once("worker-process"))
 
@@ -62,25 +72,38 @@ class SQLiteStorageTests(unittest.TestCase):
         self.assertEqual(api_graphs.get(GRAPH_ID)["cat"], {"bat"})
 
     def test_transactional_claim_allows_only_one_worker(self):
-        jobs = SQLiteJobRepository(self.database, id_factory=lambda: JOB_ID)
+        jobs = SQLiteJobRepository(self.database, id_factory=fixed_job_id)
         jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
         worker_a = SQLiteJobRepository(self.database)
         worker_b = SQLiteJobRepository(self.database)
+        def claim_task(pair):
+            repository = pair[0]
+            worker_id = pair[1]
+            return repository.claim_next(worker_id)
+
+        # Los dos hilos compiten por una única tarea disponible.
         with ThreadPoolExecutor(max_workers=2) as executor:
             claims = list(executor.map(
-                lambda pair: pair[0].claim_next(pair[1]),
+                claim_task,
                 [(worker_a, "worker-a"), (worker_b, "worker-b")],
             ))
-        self.assertEqual(sum(claim is not None for claim in claims), 1)
+        claimed_count = 0
+        for claim in claims:
+            if claim is not None:
+                claimed_count += 1
+        self.assertEqual(claimed_count, 1)
         self.assertEqual(jobs.get(JOB_ID).attempts, 1)
 
     def test_expired_sqlite_claim_is_recovered_across_instances(self):
         clock = ManualClock()
         tokens = iter([TOKEN_1, TOKEN_2])
+
+        def next_token():
+            return next(tokens)
         jobs = SQLiteJobRepository(
             self.database,
-            id_factory=lambda: JOB_ID,
-            token_factory=lambda: next(tokens),
+            id_factory=fixed_job_id,
+            token_factory=next_token,
             clock=clock,
         )
         jobs.create(JobKind.GRAPH_BUILD, {"words": ["cat"], "partitions": 1})
@@ -89,7 +112,7 @@ class SQLiteStorageTests(unittest.TestCase):
 
         restarted = SQLiteJobRepository(
             self.database,
-            token_factory=lambda: next(tokens),
+            token_factory=next_token,
             clock=clock,
         )
         new_claim = restarted.claim_next("new", lease_seconds=5)
@@ -100,14 +123,14 @@ class SQLiteStorageTests(unittest.TestCase):
         self.assertEqual(completed.status, JobStatus.SUCCEEDED)
 
     def test_worker_cli_processes_job_in_a_separate_process(self):
-        jobs = SQLiteJobRepository(self.database, id_factory=lambda: JOB_ID)
+        jobs = SQLiteJobRepository(self.database, id_factory=fixed_job_id)
         jobs.create(JobKind.GRAPH_BUILD, {
             "words": ["cat", "bat", "bad", "dad"], "partitions": 2,
         })
         root = Path(__file__).resolve().parents[1]
         output = subprocess.check_output(
             [
-                sys.executable, "-m", "graphword.worker_cli",
+                sys.executable, "-m", "graphword.trabajos.worker_cli",
                 "--database", str(self.database), "--worker-id", "process-b",
                 "--once",
             ],

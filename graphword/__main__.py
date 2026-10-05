@@ -1,13 +1,14 @@
-"""Local demonstration; partitions are executed sequentially, not in AWS."""
+"""Demostración local: ejecutar particiones de forma secuencial, sin AWS."""
 
 import argparse
 import json
 from pathlib import Path
 
-from graphword.graph import build_partition, merge_partitions, shortest_path, summary
+from graphword.motor.graph import build_partition, merge_partitions, shortest_path, summary
 
 
 def main() -> None:
+    # Leer los argumentos que escribe el usuario en la terminal.
     parser = argparse.ArgumentParser(description="GraphWord local graph demonstration")
     parser.add_argument("dictionary", type=Path)
     parser.add_argument("--partitions", type=int, default=1)
@@ -20,10 +21,13 @@ def main() -> None:
         parser.error("--from and --to must be supplied together")
     try:
         words = args.dictionary.read_text(encoding="utf-8").splitlines()
-        graph = merge_partitions(
-            build_partition(words, index, args.partitions)
-            for index in range(args.partitions)
-        )
+        # Producir y unir una partición cada vez, como en la versión anterior.
+        def build_parts():
+            for index in range(args.partitions):
+                yield build_partition(words, index, args.partitions)
+
+        graph = merge_partitions(build_parts())
+        # Mostrar estadísticas y, si se pidió, el camino mínimo.
         result = summary(graph)
         result["execution"] = "local-sequential"
         result["partitions"] = args.partitions

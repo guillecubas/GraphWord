@@ -1,15 +1,16 @@
+# Pruebas de los estados de las tareas usando un reloj controlado.
 from datetime import datetime, timedelta, timezone
 import unittest
 from uuid import UUID
 
-from graphword.jobs import (
+from graphword.trabajos.jobs import (
     InMemoryJobRepository,
     InvalidJobTransition,
     JobKind,
     JobStatus,
 )
-from graphword.storage import InMemoryGraphRepository
-from graphword.worker import GraphWordWorker
+from graphword.almacenamiento.storage import InMemoryGraphRepository
+from graphword.trabajos.worker import GraphWordWorker
 
 
 JOB_ID = UUID("00000000-0000-0000-0000-000000000010")
@@ -33,9 +34,16 @@ class JobTests(unittest.TestCase):
     def make_repository(self, max_tokens=2):
         clock = ManualClock()
         tokens = iter([TOKEN_1, TOKEN_2][:max_tokens])
+        # Producir valores conocidos para comprobar cada intento de la tarea.
+        def job_id():
+            return JOB_ID
+
+        def next_token():
+            return next(tokens)
+
         repository = InMemoryJobRepository(
-            id_factory=lambda: JOB_ID,
-            token_factory=lambda: next(tokens),
+            id_factory=job_id,
+            token_factory=next_token,
             clock=clock,
         )
         return repository, clock
@@ -81,7 +89,10 @@ class JobTests(unittest.TestCase):
 
     def test_worker_builds_graph_and_publishes_result(self):
         jobs, _ = self.make_repository()
-        graphs = InMemoryGraphRepository(id_factory=lambda: GRAPH_ID)
+        def graph_id():
+            return GRAPH_ID
+
+        graphs = InMemoryGraphRepository(id_factory=graph_id)
         jobs.create(JobKind.GRAPH_BUILD, {
             "words": ["cat", "bat", "bad", "dad"],
             "partitions": 2,
