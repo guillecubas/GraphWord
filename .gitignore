@@ -17,9 +17,10 @@ test-results/
 *.pem
 *.key
 var/
-# Documentos y evidencias: conservar solo en la copia local.
+# Documentos de trabajo y evidencias locales; publicar solo el informe final.
 docs/
-informe/
+informe/*
+!informe/informe-graphword-guillermo-cubas-granado.pdf
 data/curated/README.md
 *.db
 *.db-wal
