@@ -53,4 +53,8 @@ El despliegue está en `scripts/despliegue/deploy_aws.py` y las operaciones en
 `scripts/operaciones/aws_operations.py`. Requiere una cuenta o laboratorio AWS
 y puede consumir crédito. Nunca incluyas credenciales en el repositorio.
 
+CI ejecuta las pruebas en GitHub Actions. El CD está aislado en
+[GraphWord-CD](https://github.com/guillecubas/GraphWord-CD), un repositorio privado
+con un runner EC2 que usa `LabInstanceProfile`, sin Secrets con claves AWS.
+
 Las licencias de los diccionarios se conservan en `data/curated/licenses/`.
