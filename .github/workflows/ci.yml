@@ -2,9 +2,9 @@ name: GraphWord CI/CD
 
 on:
   push:
-    branches: [main, public-clean, 'refactor/**']
+    branches: ['refactor/python-distributed']
   pull_request:
-    branches: [main, public-clean]
+    branches: ['refactor/python-distributed']
   workflow_dispatch:
     inputs:
       deploy:

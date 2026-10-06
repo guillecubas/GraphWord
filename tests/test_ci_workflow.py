@@ -21,6 +21,9 @@ class WorkflowConfigurationTests(TestCase):
         # El despliegue espera a que las dos versiones aprueben las pruebas.
         self.assertIn("python-version: ['3.11', '3.12']", self.workflow)
         self.assertIn('python -m pip install -e ".[test,aws,aws-test,public]"', self.workflow)
+        # Push y pull request deben probar la única rama mantenida.
+        self.assertEqual(2, self.workflow.count("branches: ['refactor/python-distributed']"))
+        self.assertNotIn("public-clean", self.workflow)
 
     def test_test_output_keeps_failure_status_and_artifacts(self):
         # Guardar la salida con tee no debe ocultar el fallo de las pruebas.

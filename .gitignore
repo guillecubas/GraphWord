@@ -19,6 +19,7 @@ test-results/
 var/
 # Documentos y evidencias: conservar solo en la copia local.
 docs/
+informe/
 data/curated/README.md
 *.db
 *.db-wal
