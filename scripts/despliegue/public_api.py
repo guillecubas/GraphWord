@@ -2,6 +2,7 @@
 import argparse
 import base64
 import hashlib
+from http.cookiejar import CookieJar
 import json
 import os
 from pathlib import Path
@@ -11,12 +12,14 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 import zipfile
 
 import boto3
 from botocore.exceptions import ClientError
 from graphword.almacenamiento.dictionaries import publish_dictionaries
 from graphword.api.public_security import password_hash
+from graphword.api.browser_sessions import COOKIE_NAME
 from scripts.despliegue.deploy_aws import deploy
 from scripts.despliegue.verify_lab_ec2 import verify_identity
 
@@ -119,6 +122,29 @@ def request(url, path, authorization=None, payload=None):
         return error.code, error.read()
 
 
+def browser_smoke(url, password):
+    # Usar una sesión independiente, sin encabezado Basic, como el navegador.
+    cookies = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
+    form = urlencode({"username": "graphword", "password": password}).encode()
+    req = urllib.request.Request(url + "login", data=form,
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with opener.open(req, timeout=45) as response:
+        page = response.read()
+        if response.status != 200 or b"SwaggerUIBundle" not in page:
+            raise RuntimeError("Browser login did not open Swagger")
+    valid_cookie = False
+    for cookie in cookies:
+        if cookie.name == COOKIE_NAME and cookie.secure and cookie.has_nonstandard_attr("HttpOnly"):
+            valid_cookie = True
+    if not valid_cookie:
+        raise RuntimeError("Browser session cookie is not secure and HttpOnly")
+    with opener.open(url + "openapi.json", timeout=45) as response:
+        schema = json.loads(response.read())
+        if response.status != 200 or "/v1/graphs" not in schema["paths"]:
+            raise RuntimeError("Browser session cannot load the API schema")
+
+
 def smoke(url, password):
     # No guardar ni mostrar el encabezado de autenticación.
     authorization = "Basic " + base64.b64encode(
@@ -128,12 +154,15 @@ def smoke(url, password):
         status, body = request(url, path)
         if status != 401:
             raise RuntimeError("Unauthenticated access was not rejected: " + path)
+        if path == "docs" and (b'type="password"' not in body or b"SwaggerUIBundle" in body):
+            raise RuntimeError("Unauthenticated Swagger did not show the safe login form")
         status, body = request(url, path, authorization)
         if status != 200:
             raise RuntimeError("Authenticated access failed: " + path + " HTTP " + str(status))
     status, body = request(url, "health", "Basic Z3JhcGh3b3JkOndyb25n")
     if status != 401:
         raise RuntimeError("Wrong password was not rejected")
+    browser_smoke(url, password)
     # Este POST prueba la API Lambda y guarda un grafo pequeño en el S3 real.
     words = ["cat", "bat", "bad", "dad", "mat", "rat", "zzz"]
     status, body = request(url, "v1/graphs", authorization, {"words": words, "partitions": 2})
@@ -150,6 +179,7 @@ def smoke(url, password):
         raise RuntimeError("Public graph result differs from the expected example")
     return {"unauthenticated_rejected": True, "wrong_password_rejected": True,
             "authenticated_docs": True, "dictionary_catalog": True,
+            "browser_login_verified": True,
             "graph_id": graph_id, "shortest_path": result,
             "async_workers_verified_here": False}
 

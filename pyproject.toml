@@ -20,3 +20,6 @@ public = ["mangum==0.22.0"]
 
 [tool.setuptools.packages.find]
 include = ["graphword*"]
+
+[tool.setuptools.package-data]
+"graphword.api" = ["public_login.html"]

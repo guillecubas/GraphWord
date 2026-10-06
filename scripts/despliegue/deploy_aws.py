@@ -154,6 +154,7 @@ def build_release(config):
         # Solo incluir código y diccionarios: nunca credenciales ni el entorno virtual.
         patterns = (
             "graphword/**/*.py",
+            "graphword/api/public_login.html",
             "scripts/**/__init__.py",
             "scripts/despliegue/bootstrap_aws.py",
             "scripts/operaciones/smoke_aws.py",

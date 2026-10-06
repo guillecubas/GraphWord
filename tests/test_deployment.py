@@ -22,6 +22,7 @@ class DeploymentTests(unittest.TestCase):
                 "graphword/api/aws_app.py", "graphword/trabajos/worker.py",
                 "graphword/trabajos/aws_worker.py", "graphword/almacenamiento/aws_storage.py",
                 "graphword/configuracion/aws_runtime.py", "graphword/almacenamiento/dictionaries.py",
+                "graphword/api/public_login.html",
                 "scripts/__init__.py", "scripts/operaciones/__init__.py",
                 "scripts/operaciones/smoke_aws.py", "scripts/rendimiento/benchmark_remote.py",
                 "scripts/despliegue/bootstrap_aws.py",

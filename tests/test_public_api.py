@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from mangum import Mangum
 from graphword.api.public_security import PasswordProtectedAPI, password_hash
+from graphword.api.browser_sessions import COOKIE_NAME, SESSION_SECONDS, create_session, valid_session
 from scripts.despliegue.public_api import template, smoke, build_package
 
 
@@ -22,7 +23,58 @@ class PublicSecurityTests(TestCase):
 
         self.app = PasswordProtectedAPI(app, "graphword", self.salt,
                                         password_hash(self.password, self.salt))
-        self.client = TestClient(self.app)
+        self.client = TestClient(self.app, base_url="https://testserver")
+
+    def test_docs_show_login_form_without_exposing_swagger(self):
+        response = self.client.get("/docs")
+        self.assertEqual(401, response.status_code)
+        self.assertIn('type="password"', response.text)
+        self.assertNotIn("SwaggerUIBundle", response.text)
+
+    def test_browser_login_sets_secure_cookie_and_opens_swagger(self):
+        response = self.client.post("/login", data={"username": "graphword", "password": self.password},
+                                    follow_redirects=False)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual("/docs", response.headers["Location"])
+        cookie = response.headers["Set-Cookie"]
+        for attribute in ("HttpOnly", "Secure", "SameSite=strict", "Path=/"):
+            self.assertIn(attribute, cookie)
+        self.assertNotIn(self.password, cookie)
+        self.assertEqual(200, self.client.get("/docs").status_code)
+        self.assertEqual(200, self.client.get("/openapi.json").status_code)
+
+    def test_wrong_browser_password_creates_no_session(self):
+        response = self.client.post("/login", data={"username": "graphword", "password": "wrong"})
+        self.assertEqual(401, response.status_code)
+        self.assertNotIn("Set-Cookie", response.headers)
+        self.assertEqual(401, self.client.get("/health").status_code)
+
+    def test_oversized_login_form_is_rejected(self):
+        self.assertEqual(413, self.client.post("/login", content="x" * 8193).status_code)
+
+    def test_tampered_expired_and_wrong_key_sessions_are_rejected(self):
+        key = self.app.signing_key
+        with patch("graphword.api.browser_sessions.time.time", return_value=1000):
+            session = create_session(key)
+            header = COOKIE_NAME + "=" + session
+            self.assertTrue(valid_session(header, key))
+            self.assertFalse(valid_session(header + "a", key))
+            self.assertFalse(valid_session(header, b"wrong signing key"))
+        with patch("graphword.api.browser_sessions.time.time", return_value=1000 + SESSION_SECONDS):
+            self.assertFalse(valid_session(header, key))
+        self.assertFalse(valid_session(COOKIE_NAME + "=invalid", key))
+
+    def test_signed_session_survives_lambda_url_cookie_mapping(self):
+        session = create_session(self.app.signing_key)
+        event = {
+            "version": "2.0", "rawPath": "/health", "rawQueryString": "",
+            "headers": {"host": "example.lambda-url.us-east-1.on.aws"},
+            "cookies": [COOKIE_NAME + "=" + session],
+            "requestContext": {"http": {"method": "GET", "path": "/health",
+                                        "sourceIp": "127.0.0.1", "protocol": "HTTP/1.1"}},
+            "isBase64Encoded": False,
+        }
+        self.assertEqual(200, Mangum(self.app, lifespan="off")(event, None)["statusCode"])
 
     def test_every_path_requires_password_including_swagger(self):
         for path in ("/health", "/docs", "/openapi.json", "/unknown"):
