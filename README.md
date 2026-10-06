@@ -53,7 +53,7 @@ El despliegue está en `scripts/despliegue/deploy_aws.py` y las operaciones en
 `scripts/operaciones/aws_operations.py`. Requiere una cuenta o laboratorio AWS
 y puede consumir crédito. Nunca incluyas credenciales en el repositorio.
 
-CI y CD están en `.github/workflows/ci.yml` dentro de este repositorio privado.
+CI y CD están en `.github/workflows/ci.yml` y admiten este repositorio privado o público.
 CI prueba Python 3.11 y 3.12. Con `ENABLE_LAB_CD=true`, un push a
 `refactor/python-distributed` despliega después de aprobar las pruebas.
 También puedes usar **Actions → GraphWord CI/CD → Run workflow → deploy**.

@@ -55,11 +55,10 @@ jobs:
   deploy:
     # needs espera a que ambas versiones de Python aprueben las pruebas.
     needs: test
-    # Nunca desplegar desde una pull request, un fork ni un repositorio público.
+    # Solo desplegar desde este repositorio y rama, nunca desde PR ni forks.
     if: >-
       needs.test.result == 'success' &&
       github.repository == 'guillecubas/GraphWord' &&
-      github.event.repository.private == true &&
       github.ref == 'refs/heads/refactor/python-distributed' &&
       vars.ENABLE_LAB_CD == 'true' &&
       vars.AWS_ACCOUNT_ID != '' &&

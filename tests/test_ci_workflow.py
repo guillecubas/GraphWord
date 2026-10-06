@@ -1,4 +1,4 @@
-"""Comprobar la separación de permisos entre pruebas y despliegue privado."""
+"""Comprobar la separación de permisos entre pruebas y despliegue autorizado."""
 from pathlib import Path
 from unittest import TestCase
 
@@ -32,11 +32,11 @@ class WorkflowConfigurationTests(TestCase):
         self.assertIn("if: always()", self.workflow)
         self.assertIn("path: test-results/", self.workflow)
 
-    def test_deployment_requires_private_repository_and_successful_ci(self):
-        # Un cambio de visibilidad no debe activar un despliegue público.
+    def test_deployment_allows_both_visibilities_and_requires_successful_ci(self):
+        # La visibilidad no bloquea CD; se mantienen repositorio, rama y permiso.
         self.assertIn("needs: test", self.deploy_job)
         self.assertIn("needs.test.result == 'success'", self.deploy_job)
-        self.assertIn("github.event.repository.private == true", self.deploy_job)
+        self.assertNotIn("github.event.repository.private", self.deploy_job)
         self.assertIn("github.repository == 'guillecubas/GraphWord'", self.deploy_job)
         self.assertIn("github.ref == 'refs/heads/refactor/python-distributed'", self.deploy_job)
         self.assertIn("vars.ENABLE_LAB_CD == 'true'", self.deploy_job)
@@ -63,7 +63,11 @@ class WorkflowConfigurationTests(TestCase):
         root = Path(__file__).resolve().parents[1]
         public = (root / ".github/workflows/public-api.yml").read_text()
         self.assertIn("needs: test", public)
-        self.assertIn("github.event.repository.private == true", public)
+        self.assertNotIn("github.event.repository.private", public)
+        self.assertIn("github.repository == 'guillecubas/GraphWord'", public)
+        self.assertIn("workflow_dispatch:", public)
+        self.assertNotIn("pull_request:", public)
+        self.assertNotIn("\n  push:", public)
         self.assertIn("github.ref == 'refs/heads/refactor/python-distributed'", public)
         self.assertIn("options: [deploy, pause]", public)
         self.assertIn("group: graphword-ci-cd", public)

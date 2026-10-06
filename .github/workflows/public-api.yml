@@ -37,7 +37,6 @@ jobs:
     needs: test
     if: >-
       github.repository == 'guillecubas/GraphWord' &&
-      github.event.repository.private == true &&
       github.ref == 'refs/heads/refactor/python-distributed' &&
       vars.AWS_ACCOUNT_ID != ''
     runs-on: [self-hosted, linux, x64, graphword-lab]
