@@ -9,7 +9,7 @@ Python 3.11 o 3.12. Desde la raíz del proyecto, en PowerShell:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test,aws,aws-test]"
+.\.venv\Scripts\python.exe -m pip install -e ".[test,aws,aws-test,public]"
 ```
 
 ## Ejecutar la API
@@ -61,5 +61,12 @@ El runner EC2 utiliza `LabInstanceProfile`, sin Secrets con claves AWS.
 CD comprueba la aplicación y apaga API y worker; el runner se detiene aparte.
 Deja `ENABLE_LAB_CD=false` cuando no uses el laboratorio. No hagas público el
 repositorio mientras tenga conectado un runner con acceso a AWS.
+
+Para acceder desde otro ordenador sin túnel, **GraphWord Public HTTPS** publica
+la misma API en Lambda con HTTPS y contraseña (`GRAPHWORD_DEMO_PASSWORD`,
+Repository secret, mínimo 16 caracteres; usuario `graphword`). El workflow
+permite `deploy` o `pause` y no cambia las EC2. Con `ENABLE_PUBLIC_API=true`,
+el CD principal también actualiza Lambda. Los trabajos asíncronos requieren
+workers EC2 encendidos. La URL consume crédito por uso: páusala al terminar.
 
 Las licencias de los diccionarios se conservan en `data/curated/licenses/`.

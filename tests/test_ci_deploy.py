@@ -11,6 +11,33 @@ except ImportError:
 
 @skipIf(ci_deploy is None, "install .[aws]")
 class PipelineTests(TestCase):
+    def test_missing_public_password_is_rejected_before_ec2_deployment(self):
+        with patch.dict(ci_deploy.os.environ, {"ENABLE_PUBLIC_API": "true", "GRAPHWORD_DEMO_PASSWORD": ""}):
+            with patch.object(ci_deploy, "run") as run:
+                with self.assertRaisesRegex(RuntimeError, "GRAPHWORD_DEMO_PASSWORD"):
+                    ci_deploy.main()
+                run.assert_not_called()
+
+    def test_public_deployment_failure_still_stops_application_nodes(self):
+        config = {"region": "us-east-1", "ApiNode": "a", "WorkerNode": "b"}
+        ssm = Mock()
+        ssm.describe_instance_information.return_value = {"InstanceInformationList": [
+            {"InstanceId": "a", "PingStatus": "Online"},
+            {"InstanceId": "b", "PingStatus": "Online"},
+        ]}
+        with (
+            patch.dict(ci_deploy.os.environ, {"ENABLE_PUBLIC_API": "true",
+                                             "GRAPHWORD_DEMO_PASSWORD": "test-only-password-123456"}),
+            patch.object(ci_deploy.Path, "exists", side_effect=[False, True]),
+            patch.object(ci_deploy.Path, "read_text", return_value=json.dumps(config)),
+            patch.object(ci_deploy.boto3, "client", return_value=ssm),
+            patch.object(ci_deploy.subprocess, "run", side_effect=RuntimeError("public failed")),
+            patch.object(ci_deploy, "run") as run,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "public failed"):
+                ci_deploy.main()
+        self.assertEqual(call("operaciones/aws_operations.py", "stop"), run.call_args)
+
     def test_reused_metadata_is_rejected(self):
         with patch.object(ci_deploy.Path, "exists", return_value=True), patch.object(ci_deploy, "run") as run:
             with self.assertRaises(RuntimeError):

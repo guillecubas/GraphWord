@@ -4,6 +4,7 @@ For a teaching lab: verify a live API, then stop its EC2 nodes to limit spending
 A runner kill/timeout or incomplete CloudFormation deployment requires inspection.
 """
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -22,6 +23,12 @@ def run(script, *args):
 
 
 def main():
+    public_enabled = os.getenv("ENABLE_PUBLIC_API") == "true"
+    if public_enabled:
+        # Comprobar el Secret antes de crear o reemplazar ninguna EC2.
+        password = os.getenv("GRAPHWORD_DEMO_PASSWORD", "")
+        if len(password) < 16 or len(password) > 256:
+            raise RuntimeError("Configure GRAPHWORD_DEMO_PASSWORD before deploying public HTTPS")
     config_path = ROOT / "var/aws-deployment.json"
     # Prevent cleanup accidentally targeting a previous deployment on a reused runner.
     if config_path.exists():
@@ -48,6 +55,10 @@ def main():
             raise TimeoutError("SSM nodes did not become ready")
         run("operaciones/aws_operations.py", "status")
         run("operaciones/aws_operations.py", "smoke")
+        if public_enabled:
+            # Actualizar también la entrada HTTPS si se ha habilitado expresamente.
+            subprocess.run([sys.executable, "-m", "scripts.despliegue.public_api", "deploy"],
+                           cwd=ROOT, check=True)
     finally:
         # Intentar parar los nodos registrados incluso si una comprobación falla.
         if config_path.exists():

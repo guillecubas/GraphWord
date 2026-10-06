@@ -20,7 +20,7 @@ class WorkflowConfigurationTests(TestCase):
     def test_both_python_versions_are_tested(self):
         # El despliegue espera a que las dos versiones aprueben las pruebas.
         self.assertIn("python-version: ['3.11', '3.12']", self.workflow)
-        self.assertIn('python -m pip install -e ".[test,aws,aws-test]"', self.workflow)
+        self.assertIn('python -m pip install -e ".[test,aws,aws-test,public]"', self.workflow)
 
     def test_test_output_keeps_failure_status_and_artifacts(self):
         # Guardar la salida con tee no debe ocultar el fallo de las pruebas.
@@ -53,3 +53,14 @@ class WorkflowConfigurationTests(TestCase):
         self.assertIn("runs-on: [self-hosted, linux, x64, graphword-lab]", self.deploy_job)
         self.assertIn("--stopped-metadata var/aws-deployment.json", self.deploy_job)
         self.assertIn("cancel-in-progress: false", self.test_job)
+
+    def test_public_password_is_only_in_deployment_step(self):
+        self.assertNotIn("GRAPHWORD_DEMO_PASSWORD", self.test_job)
+        self.assertIn("secrets.GRAPHWORD_DEMO_PASSWORD", self.deploy_job)
+        root = Path(__file__).resolve().parents[1]
+        public = (root / ".github/workflows/public-api.yml").read_text()
+        self.assertIn("needs: test", public)
+        self.assertIn("github.event.repository.private == true", public)
+        self.assertIn("github.ref == 'refs/heads/refactor/python-distributed'", public)
+        self.assertIn("options: [deploy, pause]", public)
+        self.assertIn("group: graphword-ci-cd", public)

@@ -19,20 +19,23 @@ from botocore.exceptions import ClientError
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def deploy(cf, name, template):
+def deploy(cf, name, template, parameters=None):
     body = json.dumps(template)
     # Validar la plantilla antes de crear o actualizar los recursos.
     cf.validate_template(TemplateBody=body)
+    options = {}
+    if parameters is not None:
+        options["Parameters"] = parameters
     try:
         cf.describe_stacks(StackName=name)
     except ClientError as error:
         if "does not exist" not in str(error):
             raise
         cf.create_stack(StackName=name, TemplateBody=body,
-                        Tags=[{"Key": "Project", "Value": "GraphWord"}])
+                        Tags=[{"Key": "Project", "Value": "GraphWord"}], **options)
     else:
         try:
-            cf.update_stack(StackName=name, TemplateBody=body)
+            cf.update_stack(StackName=name, TemplateBody=body, **options)
         except ClientError as error:
             if "No updates are to be performed" not in str(error):
                 raise

@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install project and test dependencies
-        run: python -m pip install -e ".[test,aws,aws-test]"
+        run: python -m pip install -e ".[test,aws,aws-test,public]"
       - name: Run tests and preserve exit status
         shell: bash
         run: |
@@ -94,6 +94,9 @@ jobs:
           python -m venv .venv
           .venv/bin/python -m pip install -e '.[aws]'
       - name: Deploy, verify API and workers, then request their stop
+        env:
+          ENABLE_PUBLIC_API: ${{ vars.ENABLE_PUBLIC_API }}
+          GRAPHWORD_DEMO_PASSWORD: ${{ secrets.GRAPHWORD_DEMO_PASSWORD }}
         run: .venv/bin/python scripts/despliegue/ci_deploy.py
       - name: Confirm application nodes are stopped
         run: python3 scripts/despliegue/verify_lab_ec2.py --stopped-metadata var/aws-deployment.json

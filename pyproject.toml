@@ -16,6 +16,7 @@ dependencies = [
 test = ["httpx2==2.12.0"]
 aws = ["boto3==1.43.107"]
 aws-test = ["moto[s3,sqs,dynamodb]==5.2.3"]
+public = ["mangum==0.22.0"]
 
 [tool.setuptools.packages.find]
 include = ["graphword*"]
