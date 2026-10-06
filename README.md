@@ -53,8 +53,13 @@ El despliegue está en `scripts/despliegue/deploy_aws.py` y las operaciones en
 `scripts/operaciones/aws_operations.py`. Requiere una cuenta o laboratorio AWS
 y puede consumir crédito. Nunca incluyas credenciales en el repositorio.
 
-CI ejecuta las pruebas en GitHub Actions. El CD está aislado en
-[GraphWord-CD](https://github.com/guillecubas/GraphWord-CD), un repositorio privado
-con un runner EC2 que usa `LabInstanceProfile`, sin Secrets con claves AWS.
+CI y CD están en `.github/workflows/ci.yml` dentro de este repositorio privado.
+CI prueba Python 3.11 y 3.12. Con `ENABLE_LAB_CD=true`, un push a
+`refactor/python-distributed` despliega después de aprobar las pruebas.
+También puedes usar **Actions → GraphWord CI/CD → Run workflow → deploy**.
+El runner EC2 utiliza `LabInstanceProfile`, sin Secrets con claves AWS.
+CD comprueba la aplicación y apaga API y worker; el runner se detiene aparte.
+Deja `ENABLE_LAB_CD=false` cuando no uses el laboratorio. No hagas público el
+repositorio mientras tenga conectado un runner con acceso a AWS.
 
 Las licencias de los diccionarios se conservan en `data/curated/licenses/`.

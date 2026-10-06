@@ -35,7 +35,7 @@ def startup_script():
         "tar -xzf runner.tar.gz",
         "./bin/installdependencies.sh",
         "chown -R graphword-runner:graphword-runner /opt/actions-runner",
-        "echo 'Runner preparado. Falta registrar solo en guillecubas/GraphWord-CD.'",
+        "echo 'Runner preparado. Registrar en guillecubas/GraphWord solo si es privado.'",
         "",
     ])
 
@@ -220,7 +220,7 @@ def main():
         return
     runner = create_runner(session.client("cloudformation"), template)
     print("RunnerNode:", runner, flush=True)
-    print("Esperar cloud-init y registrar el runner solo en guillecubas/GraphWord-CD.")
+    print("Esperar cloud-init y registrar en guillecubas/GraphWord solo si es privado.")
 
 
 if __name__ == "__main__":

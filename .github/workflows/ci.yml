@@ -1,4 +1,4 @@
-name: GraphWord CI
+name: GraphWord CI/CD
 
 on:
   push:
@@ -6,13 +6,22 @@ on:
   pull_request:
     branches: [main, public-clean]
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Desplegar en AWS después de aprobar las pruebas (consume crédito)'
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: python-ci-${{ github.ref }}
+  # No ejecutar dos despliegues al mismo tiempo ni interrumpir su limpieza.
+  group: graphword-ci-cd
   cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
@@ -22,8 +31,10 @@ jobs:
       matrix:
         python-version: ['3.11', '3.12']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install project and test dependencies
@@ -36,10 +47,60 @@ jobs:
           python -m unittest discover -s tests -v 2>&1 | tee test-results/unittest.txt
       - name: Upload test output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: unittest-${{ matrix.python-version }}
           path: test-results/
 
-  # El CD se ejecuta en GraphWord-CD privado, con un runner EC2 y LabInstanceProfile.
-  # Nunca conectar un runner con acceso a AWS a este repositorio público.
+  deploy:
+    # needs espera a que ambas versiones de Python aprueben las pruebas.
+    needs: test
+    # Nunca desplegar desde una pull request, un fork ni un repositorio público.
+    if: >-
+      needs.test.result == 'success' &&
+      github.repository == 'guillecubas/GraphWord' &&
+      github.event.repository.private == true &&
+      github.ref == 'refs/heads/refactor/python-distributed' &&
+      vars.ENABLE_LAB_CD == 'true' &&
+      vars.AWS_ACCOUNT_ID != '' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy))
+    runs-on: [self-hosted, linux, x64, graphword-lab]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_DEFAULT_REGION: us-east-1
+      # Usar el rol de EC2, no perfiles locales ni Secrets con claves AWS.
+      AWS_EC2_METADATA_DISABLED: 'false'
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
+      AWS_CONFIG_FILE: /dev/null
+      AWS_PAGER: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Desplegar exactamente el código que acaba de superar CI.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Verify EC2 workload identity
+        run: python3 scripts/despliegue/verify_lab_ec2.py
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Create an isolated Python environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e '.[aws]'
+      - name: Deploy, verify API and workers, then request their stop
+        run: .venv/bin/python scripts/despliegue/ci_deploy.py
+      - name: Confirm application nodes are stopped
+        run: python3 scripts/despliegue/verify_lab_ec2.py --stopped-metadata var/aws-deployment.json
+      - name: Preserve deployment results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aws-deployment-${{ github.sha }}
+          path: var/aws-*.json
+          if-no-files-found: warn
